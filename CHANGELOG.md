@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-11 (fit to screen)
+- Every layout now scales as one piece to the screen (0.7 to 1.6 times, from the free height and width) and is centred; it rescales on rotation and resize. Checked at 375x812, 430x932 and 768x1024 (no scrolling in any layout); 320x568 and landscape phones stop at 0.7 and scroll.
+
 ## 2026-11-11 (proofs and fixes)
 - Test: the "stays local" proof is in `test_remote_fast.py`: a tripwire refuses every connection and program start while it runs, the code may import only the standard library modules in use, start only adb, tasklist and netstat, dial only the TV address, and the page may not reference anything outside itself. Also checks the cookie flags and that nothing is logged. Verified to turn red on deliberate breakages (extra import, curl instead of adb, loose CSP, cookie without Secure, request logging).
 - Fixes: `NOWIN` console flag only on Windows (adb calls no longer fail elsewhere); the status check probes the port from `tv.txt` instead of 5555; the traffic watch starts only on Windows and the panel says "not available on this system" elsewhere instead of "clean".

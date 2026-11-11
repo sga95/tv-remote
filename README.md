@@ -13,6 +13,7 @@ A phone web page that works as a remote control for an Android TV. One small Pyt
   - Future: neon look, and the volume buttons become a bar with a live number. Drag up or down anywhere on it: 3 px per step, relative to where the finger landed, so a touch alone never jumps the volume. The page reads the TV's level when the layout opens, then sets the level directly (`cmd media_session volume`, stream 3) with the newest value at most every 60 ms, so the TV follows the finger smoothly.
   - 90s: a classic button remote. Number pad, a D-pad cross with OK instead of the touchpad, raised rubber-style keys.
   - Simple: only a large D-pad with OK, Back, Home, volume, mute and power. Everything else is hidden. Chosen from a short review of remote usability sources: few large keys and a physical-style D-pad are what people get on with best.
+- Fits the screen: every layout is scaled as one piece (between 0.7 and 1.6 times) to the free height and width, and centred, so a normal phone shows the whole remote without scrolling and a tablet shows it larger. It rescales when the screen turns or the browser bar hides. Very small screens and phones held sideways stop at 0.7 and scroll.
 - Owner view: the same remote plus a live status panel (TV reachable, apps in memory with their size, free RAM, adb shell state, uptime, taps, send time, wrong-secret attempts, lockouts, traffic watch, live records of suspicious events). Counters live in memory only.
 
 ## Files

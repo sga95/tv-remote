@@ -230,8 +230,8 @@ def stats():
 
 CSS = """:root{--bg:#0a0a0f;--s:#14141c;--s2:#1d1d29;--bd:#242431;--tx:#e9e9ef;--mu:#7d7d8c;--ac:#6ea8ff}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.2 -apple-system,system-ui,sans-serif;padding:14px 14px max(24px,env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none}
-main{max-width:440px;margin:auto;display:grid;gap:12px}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.2 -apple-system,system-ui,sans-serif;padding:14px 14px max(24px,env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none;min-height:100dvh;display:flex}
+main{max-width:440px;width:100%;margin:auto;display:grid;gap:12px}
 button{font:inherit;color:var(--tx);background:var(--s);border:1px solid var(--bd);border-radius:20px;height:56px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s,background .15s}
 button:active{transform:scale(.95);background:var(--s2)}
 button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
@@ -313,7 +313,9 @@ const vsend=()=>{clearTimeout(vq);const w=60-(Date.now()-vt);if(w>0){vq=setTimeo
 vol.onpointerdown=e=>{if(vv==null)return;vol.setPointerCapture(e.pointerId);v0=vv;vy=e.clientY};
 vol.onpointermove=e=>{if(v0==null)return;vshow(Math.max(0,Math.min(vm,v0+Math.round((vy-e.clientY)/3))));vsend()};
 vol.onpointerup=vol.onpointercancel=()=>{v0=null};
-const lay=n=>{document.body.className=n;try{localStorage.lay=n}catch(e){}document.querySelectorAll('#lay button').forEach(x=>x.classList.toggle('on',x.dataset.l==n));if(n=='fx')vget()};
+// Fit the whole remote to the screen: one zoom factor from the free height and width (38 and 28 px are the body padding), kept between 0.7 and 1.6.
+const M=document.querySelector('main'),fit=()=>{M.style.zoom=1;M.style.zoom=Math.max(.7,Math.min(1.6,(innerHeight-38)/M.offsetHeight,(innerWidth-28)/M.offsetWidth))};onresize=fit;
+const lay=n=>{document.body.className=n;try{localStorage.lay=n}catch(e){}document.querySelectorAll('#lay button').forEach(x=>x.classList.toggle('on',x.dataset.l==n));if(n=='fx')vget();fit()};
 let l0='';try{l0=localStorage.lay||''}catch(e){}lay(l0);document.onvisibilitychange=()=>{document.hidden||document.body.className!='fx'||vget()};"""
 
 STATS_JS = """const st=()=>fetch('/'+T+'/stats').then(r=>r.json()).then(j=>{document.getElementById('st').textContent=Object.entries(j).map(e=>e.join(': ')).join('\\n')});st();setInterval(st,5000)"""
