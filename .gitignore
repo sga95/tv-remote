@@ -1,0 +1,7 @@
+# Allowlist: only the code and the docs are ever committed. Secrets, certificate, settings and runtime files stay local.
+*
+!.gitignore
+!remote_fast.py
+!test_remote_fast.py
+!README.md
+!CHANGELOG.md
