@@ -11,10 +11,14 @@ if len(sys.argv) != 2:
     sys.exit("usage: python make_package.py <version>")
 version = sys.argv[1]
 root = f"tv-remote-{version}"
+# Strings that must never ship: user paths always, plus whatever the author lists in forbidden.txt (kept local, never committed).
+FORBIDDEN = [b"C:" + b"\\Users\\"]
+if os.path.exists(os.path.join(D, "forbidden.txt")):
+    FORBIDDEN += [l.strip().encode() for l in open(os.path.join(D, "forbidden.txt")) if l.strip()]
 blobs = {}
 for f in FILES:
     data = open(os.path.join(D, f), "rb").read().replace(b"\r\n", b"\n")  # same bytes on every machine
-    for bad in (b"C:" + b"\\Users\\", b"192.0.2.1", b"192.0.2.2", b"AUTHOR"):  # the author's own paths, addresses and name must never ship
+    for bad in FORBIDDEN:
         if bad in data:
             sys.exit(f"STOP: {f} contains {bad!r}, remove it before publishing")
     blobs[f] = data
