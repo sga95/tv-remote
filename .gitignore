@@ -5,3 +5,5 @@
 !test_remote_fast.py
 !README.md
 !CHANGELOG.md
+!setup.py
+!make_package.py
