@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-11 (proofs and fixes)
+- Test: the "stays local" proof is in `test_remote_fast.py`: a tripwire refuses every connection and program start while it runs, the code may import only the standard library modules in use, start only adb, tasklist and netstat, dial only the TV address, and the page may not reference anything outside itself. Also checks the cookie flags and that nothing is logged. Verified to turn red on deliberate breakages (extra import, curl instead of adb, loose CSP, cookie without Secure, request logging).
+- Fixes: `NOWIN` console flag only on Windows (adb calls no longer fail elsewhere); the status check probes the port from `tv.txt` instead of 5555; the traffic watch starts only on Windows and the panel says "not available on this system" elsewhere instead of "clean".
+- README: secret wording matches the code, traffic watch limits, a table of every claim with its check and an honest "not tested" where there is none.
+
 ## 2026-11-11 (package and license)
 - Licensed under GNU AGPL-3.0-or-later (`LICENSE`, SPDX line in the code files).
 - Guided setup `setup.py`: checks `SHA256SUMS`, finds adb, asks for the TV address, creates the certificate and secrets, runs the self-check; never overwrites, changes no system setting, prints the firewall and logon commands for you to run.

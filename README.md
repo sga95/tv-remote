@@ -28,8 +28,8 @@ A phone web page that works as a remote control for an Android TV. One small Pyt
 | `tv.txt` | TV address and adb port, for example `192.168.1.50:5555`. Required. |
 | `adb.txt` | Path to `adb` (optional, defaults to `adb` on PATH). |
 | `cert.pem`, `key.pem` | TLS certificate and key. Required: no certificate, no start. |
-| `token.txt` | Secret for the plain remote URL (5 random words). Created if missing. |
-| `admin.txt` | Second secret for the owner URL (5 random words). Created if missing. |
+| `token.txt` | Secret for the plain remote URL. `setup.py` writes five random words; if the server has to create it itself (no setup) it uses a random URL-safe string instead. |
+| `admin.txt` | Second secret for the owner URL, same rule as `token.txt`. |
 | `device.txt` | SHA-256 hashes of paired cookies, one per line. Created on pairing. |
 
 The secret files and the key are never committed or published. The code holds no personal data.
@@ -67,7 +67,7 @@ By hand: put the TV address in `tv.txt` (and the adb path in `adb.txt` if adb is
 - Pairing: the owner URL gives the device a random 256-bit cookie (`Secure`, `HttpOnly`, `SameSite=Strict`, 90 days). The server stores only its SHA-256 hash (newest ten devices) and compares in constant time. Encrypting the cookie would add nothing: it is opaque random data and already encrypted by TLS.
 - Commands to the TV come only from fixed tables (keys, apps, sound presets). User input is only a lookup key, never part of a command. The one exception is the volume level: digits only, 0 to 100, converted to a number and printed again by the server before it reaches the TV. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
 - Strict response headers (no-store, CSP with `default-src 'none'`, nosniff, no referrer, no framing, no camera/microphone/location). Requests and secrets are never logged. Nothing is recorded about what is watched.
-- Traffic watch: every 15 seconds the server checks its own and adb's connections. Anything to the internet or to a host other than the TV is recorded and turns the panel to ALERT. Inbound from non-LAN addresses is recorded too.
+- Traffic watch: every 15 seconds the server checks its own and adb's connections. Anything to the internet or to a host other than the TV is recorded and turns the panel to ALERT. Inbound from non-LAN addresses is recorded too. Limits: Windows only (it reads `tasklist` and `netstat`), TCP only, sampled every 15 seconds, so a very short connection can be missed. On other systems the panel says "not available on this system" and does not start the watch.
 - Exclusive port bind: a second server cannot share the port.
 - Known limits: the volume bar shows the level read when the Future layout opens or the page comes back to the front, so a change made meanwhile with another remote shows only then; the 90s D-pad sends one step per press (no hold to repeat); no cap on simultaneous LAN connections; self-signed certificate (the browser warns, trust on first use); a paired phone that is unlocked can use the remote; the first key after the TV was off can be lost; the certificate is tied to the laptop's LAN address and has a one-year life.
 
@@ -84,6 +84,29 @@ Delete `device.txt` and restart. Open the owner URL on the devices you want to k
 ## License
 
 GNU Affero General Public License v3.0 or later (see `LICENSE`). You may use and change the code, but if you distribute it, or let others use a modified version over a network, you must publish your version under the same license.
+
+## Checked claims
+
+Every promise above, and the check behind it (`python test_remote_fast.py`). "Not tested" is stated plainly.
+
+| Claim | Checked by | State |
+| --- | --- | --- |
+| Closed by default, the plain URL needs a paired device | closed-by-default and right-secret-without-cookie checks | tested |
+| Pairing cookie: only its hash is stored, a forged cookie is refused | stored-hash and forged-cookie checks | tested |
+| Cookie is `Secure`, `HttpOnly`, `SameSite=Strict`, 90 days | cookie flags check | tested |
+| Commands only from fixed tables, volume digits only | allowlist, `snd/Evil`, digits-only checks | tested |
+| Status panel for the owner only | status panel check | tested |
+| Private-range clients only | non-LAN client check | tested |
+| Five wrong secrets lock the address, the owner still gets in | lockout checks | tested |
+| Requests and secrets are never logged | log check | tested |
+| No way to call out except adb to the TV (code) | import list, no dynamic code, only adb/tasklist/netstat started, only the TV address dialled, tripwire at run time | tested, see limits below |
+| The page cannot load from or send to anywhere else; strict headers | page checks and exact CSP check | tested |
+| TLS mandatory, never plain HTTP, TLS 1.2 minimum | none | not tested |
+| Binds to the LAN address only, exclusive port | none | not tested |
+| Secrets compared in constant time | none (read in the code: `hmac.compare_digest`) | not tested |
+| Traffic watch reports outbound connections | none | not tested |
+
+What the "stays local" checks show: this version of the file holds no way to call out except adb to the TV, and any change that adds one turns the test red until a person reviews it. What they do not show: a tripwire is not a defence against an author who hides code on purpose, and it says nothing about what adb (a Google program), Windows or the TV do on their own. `script-src 'unsafe-inline'` stays because the page is one self-contained file; the page is safe from injected script because nothing a visitor types is ever written into it.
 
 ## Tests
 

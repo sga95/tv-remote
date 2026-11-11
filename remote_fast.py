@@ -128,7 +128,7 @@ def lan_ip():
     return s.getsockname()[0]
 
 
-NOWIN = 0x08000000  # CREATE_NO_WINDOW: when run by pythonw at logon, adb/netstat must not flash console windows
+NOWIN = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW: when run by pythonw at logon, adb/netstat must not flash console windows
 EV = collections.deque(maxlen=40)  # live security records (memory only): (time, what, who)
 
 
@@ -200,7 +200,7 @@ def vol_get():
 
 def stats():
     try:
-        socket.create_connection((TV.split(":")[0], 5555), 0.5).close()
+        socket.create_connection((TV.split(":")[0], int(TV.partition(":")[2] or 5555)), 0.5).close()
         up = True
     except OSError:
         up = False
@@ -224,7 +224,7 @@ def stats():
             "write time avg/max": f"{ST['ms_sum'] / n:.1f} / {ST['ms_max']:.1f} ms", "shell restarts": ST["restarts"],
             "wrong tokens": ST["bad"], "lockouts": ST["locks"], "last wrong token": ST["last_bad"] or "never",
             "locked now": sum(1 for c, t in FAILS.values() if c >= 5 and t > time.time()),
-            "traffic watch": "ALERT, see below" if any(e[1].startswith(("OUTBOUND", "INBOUND")) for e in EV) else "clean",
+            "traffic watch": ("not available on this system" if sys.platform != "win32" else "ALERT, see below" if any(e[1].startswith(("OUTBOUND", "INBOUND")) for e in EV) else "clean"),
             "live records": "\n  " + "\n  ".join(" ".join(e) for e in list(EV)[:8]) if EV else "none"}
 
 
@@ -452,7 +452,8 @@ if __name__ == "__main__":
         except OSError:  # no network yet (logon before Wi-Fi): keep waiting, a crash here would never recover
             time.sleep(5)
     print(out, f"\nOpen on phone: https://{ip}:{PORT}/{TOKEN}\nOwner panel (remote + status): https://{ip}:{PORT}/{ADMIN}", flush=True)
-    threading.Thread(target=watch, daemon=True).start()
+    if sys.platform == "win32":  # the watch reads tasklist and netstat: Windows only, elsewhere the panel says so
+        threading.Thread(target=watch, daemon=True).start()
     cert, key = os.path.join(_dir, "cert.pem"), os.path.join(_dir, "key.pem")
     if not (os.path.exists(cert) and os.path.exists(key)):
         sys.exit("cert.pem and key.pem are missing: the remote never serves plain HTTP")
