@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-12 (designed README)
+- README redesigned for GitHub, every fact kept: opening with a picture of the four layouts (`docs/layouts.jpg`, made from the real page with a placeholder secret), three-point summary, two Mermaid diagrams (data path, request gate), layout table, collapsible details, numbered setup. Nothing is loaded from a third-party host. Stale numbers corrected (1 to 5 volume steps, about 8 steps per second).
+
 ## 2026-11-12 (scroll, faster and safer volume, readable code)
 - Fix: the page stuttered and jammed while scrolling on a phone. The fit-to-screen code re-measured the remote every time a browser bar slid in or out, which happens during every scroll. It now sizes the remote once to the small viewport (`100svh`, bars showing) and again only on layout change or rotation; the first screen is as tall as the large viewport (`100lvh`), so the settings still start below it.
 - New strip with an arrow under the remote: a safe place to start a scroll (keys act on touch), and a tap jumps to the settings.
