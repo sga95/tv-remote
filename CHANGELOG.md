@@ -5,6 +5,7 @@
 - New strip with an arrow under the remote: a safe place to start a scroll (keys act on touch), and a tap jumps to the settings.
 - Volume bar faster: up to 5 key presses per request, sent side by side. Measured on the TV: 3 presses in 0.5 s, 6 in 0.75 s, about 8 steps per second instead of 4. Nothing faster exists on this TV: `--set`, `--adj` and `--show --set` are ignored.
 - Volume bar safety (`VOL_LIMITS`): maximum 50 by day and 30 at night (22:00 to 07:00), at most 10 steps up per drag, lowering never limited, amber number at the limit. Night comes from the phone's own clock in the page; no service is asked and nothing is sent or stored.
+- `setup.py` and `make_package.py`: explanatory comments and docstrings added, no logic change.
 - `remote_fast.py` rewritten for reading, same behaviour: sections in reading order, a file map and the safety rules at the top, detailed comments, named helpers, readable CSS and JS.
 
 ## 2026-11-12

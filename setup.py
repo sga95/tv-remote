@@ -1,10 +1,17 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Guided setup for the local TV remote. Run: python setup.py
+
+It walks through six steps, each one a function below (step_verify ... step_test), and main() runs them in order:
+check the downloaded files, find adb, ask for the TV, create the certificate, create the two secrets, run the self-check.
+Everything it writes is a small text file next to this script; remote_fast.py reads those files when it starts.
+
 Safe to run again: it never overwrites an existing secret, certificate or setting.
 Standard library only. It does not change firewall, startup or system settings: it prints the commands for you to run."""
 import ipaddress, hashlib, os, secrets, shutil, socket, subprocess, sys
 
-D = os.path.dirname(os.path.abspath(__file__))
+D = os.path.dirname(os.path.abspath(__file__))  # the folder this script is in: every file is read and written here
+# Word list for the secrets. Five random words from it give about 35 bits of randomness: enough here, because the
+# server locks an address out after five wrong tries, and far easier to read and type than random letters.
 WORDS = """albero ape arancia asino aquila bacio barca bosco burro cane casa cavallo cielo cigno cinema colle corda
 cuore delfino dado faro fiore fiume foglia formica fragola freccia fuoco gatto gelato giglio giardino lago lampada
 leone libro luna maglia mare mela miele monte nave nebbia neve nido nuvola oca orso ombra onda orologio ostrica
@@ -13,27 +20,32 @@ sabbia sale scala scoiattolo sedia sole stella strada tavolo tazza tenda tigre t
 verde volpe zebra zucca amico arco bandiera biscotto bottone campana candela castello cometa conchiglia cuscino diamante
 estate farfalla fontana gabbiano gufo isola lepre limone lupo mulino notte olivo pantera papavero pennello pera
 pinguino piuma prugna razza rondine sentiero serpente sirena tartaruga tempesta topo tramonto trota uovo vela violino zaino""".split()
-NOWIN = 0x08000000 if os.name == "nt" else 0
+NOWIN = 0x08000000 if os.name == "nt" else 0  # Windows: run helper programs without opening a console window
 
 
 def say(m=""):
+    """Print a line at once (flush), so the text shows before the next question."""
     print(m, flush=True)
 
 
 def ask(q, default=""):
+    """Ask a question; an empty answer means the default shown in [brackets]."""
     a = input(f"{q}" + (f" [{default}]" if default else "") + ": ").strip()
     return a or default
 
 
 def path(name):
+    """Full path of a file next to this script."""
     return os.path.join(D, name)
 
 
 def read(name):
+    """Content of a setting file, or "" if it does not exist yet."""
     return open(path(name)).read().strip() if os.path.exists(path(name)) else ""
 
 
 def run(cmd, **k):
+    """Run a program given as a list of arguments (never through a shell) and capture what it prints."""
     return subprocess.run(cmd, capture_output=True, text=True, timeout=k.pop("timeout", 20), creationflags=NOWIN, **k)
 
 
@@ -55,6 +67,7 @@ def step_verify():
 
 
 def step_adb():
+    """Find a working adb: the saved path, then PATH, then ask. Saves the path in adb.txt unless plain "adb" already works."""
     say("2. Android Debug Bridge (adb)")
     found = read("adb.txt") or shutil.which("adb") or ""
     while True:
@@ -75,6 +88,7 @@ def step_adb():
 
 
 def step_tv(adb):
+    """Ask for the TV address (home-network addresses only), save it in tv.txt and try a first connection."""
     say("3. Your TV")
     cur = read("tv.txt")
     if cur:
@@ -97,12 +111,14 @@ def step_tv(adb):
 
 
 def lan_ip(tv_ip):
+    """This computer's address on the network that leads to the TV. A UDP "connect" sends nothing; it only picks the network card."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect((tv_ip, 1))
     return s.getsockname()[0]
 
 
 def step_cert(tv_ip):
+    """Create the TLS certificate with openssl, for this computer's home-network address. Returns False if it could not."""
     say("4. Encrypted connection (TLS certificate)")
     if os.path.exists(path("cert.pem")) and os.path.exists(path("key.pem")):
         say("   certificate already there: kept")
@@ -122,6 +138,7 @@ def step_cert(tv_ip):
 
 
 def step_secrets():
+    """Create the two secrets, unless they exist. secrets.choice uses the system's secure random source."""
     say("5. Secrets (five random words each, never shared, never committed)")
     for f, what in (("token.txt", "plain remote URL"), ("admin.txt", "owner URL")):
         if read(f):
@@ -132,6 +149,7 @@ def step_secrets():
 
 
 def step_test():
+    """Run the self-check and show its last line (all checks passed, or the first failure)."""
     say("6. Self-check")
     if os.path.exists(path("test_remote_fast.py")):
         r = run([sys.executable, path("test_remote_fast.py")], timeout=60)
