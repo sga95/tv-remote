@@ -8,6 +8,10 @@ A phone web page that works as a remote control for an Android TV. One small Pyt
 - Back, Home, Menu, Power, Play/Pause, Input, Volume (up, mute, down), Channel up and down.
 - App launchers (Netflix, Prime, YouTube, Spotify, Twitch, the launcher). Opening an app closes the other apps in the list, to free the TV's small RAM. Nothing runs in the background by design.
 - Sound presets (Voice, Movie, Night, Normal) that write the TV's own sound settings. The original values are kept in a restore file.
+- Layouts, chosen with the Layout control at the bottom of the page. The choice is kept on the phone (localStorage), the server stores nothing about it.
+  - Touch (default): the page described above.
+  - Future: neon look, and the volume buttons become a bar with a live number. Drag up or down anywhere on it: 3 px per step, relative to where the finger landed, so a touch alone never jumps the volume. The page reads the TV's level when the layout opens, then sets the level directly (`cmd media_session volume`, stream 3) with the newest value at most every 60 ms, so the TV follows the finger smoothly.
+  - 90s: a classic button remote. Number pad, a D-pad cross with OK instead of the touchpad, raised rubber-style keys.
 - Owner view: the same remote plus a live status panel (TV reachable, apps in memory with their size, free RAM, adb shell state, uptime, taps, send time, wrong-secret attempts, lockouts, traffic watch, live records of suspicious events). Counters live in memory only.
 
 ## Files
@@ -15,7 +19,7 @@ A phone web page that works as a remote control for an Android TV. One small Pyt
 | File | Purpose |
 | --- | --- |
 | `remote_fast.py` | The whole server and page. Standard library only. |
-| `test_remote_fast.py` | 16 assert checks, run on a temporary copy with its own secrets. |
+| `test_remote_fast.py` | 21 assert checks, run on a temporary copy with its own secrets. |
 | `tv.txt` | TV address and adb port, for example `192.168.1.50:5555`. Required. |
 | `adb.txt` | Path to `adb` (optional, defaults to `adb` on PATH). |
 | `cert.pem`, `key.pem` | TLS certificate and key. Required: no certificate, no start. |
@@ -39,11 +43,11 @@ The secret files and the key are never committed or published. The code holds no
 - Binds to the laptop LAN address only, serves private-range clients only.
 - Two secrets in the URL path, compared in constant time. Five wrong secrets lock that client address for five minutes. The owner secret always gets through.
 - Pairing: the owner URL gives the device a random 256-bit cookie (`Secure`, `HttpOnly`, `SameSite=Strict`, 90 days). The server stores only its SHA-256 hash (newest ten devices) and compares in constant time. Encrypting the cookie would add nothing: it is opaque random data and already encrypted by TLS.
-- Commands to the TV come only from fixed tables (keys, apps, sound presets). User input is only a lookup key, never part of a command. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
+- Commands to the TV come only from fixed tables (keys, apps, sound presets). User input is only a lookup key, never part of a command. The one exception is the volume level: digits only, 0 to 100, converted to a number and printed again by the server before it reaches the TV. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
 - Strict response headers (no-store, CSP with `default-src 'none'`, nosniff, no referrer, no framing, no camera/microphone/location). Requests and secrets are never logged. Nothing is recorded about what is watched.
 - Traffic watch: every 15 seconds the server checks its own and adb's connections. Anything to the internet or to a host other than the TV is recorded and turns the panel to ALERT. Inbound from non-LAN addresses is recorded too.
 - Exclusive port bind: a second server cannot share the port.
-- Known limits: no cap on simultaneous LAN connections; self-signed certificate (the browser warns, trust on first use); a paired phone that is unlocked can use the remote; the first key after the TV was off can be lost; the certificate is tied to the laptop's LAN address and has a one-year life.
+- Known limits: the volume bar shows the level read when the Future layout opens or the page comes back to the front, so a change made meanwhile with another remote shows only then; the 90s D-pad sends one step per press (no hold to repeat); no cap on simultaneous LAN connections; self-signed certificate (the browser warns, trust on first use); a paired phone that is unlocked can use the remote; the first key after the TV was off can be lost; the certificate is tied to the laptop's LAN address and has a one-year life.
 
 ## Running on Windows
 
@@ -61,4 +65,4 @@ Delete `device.txt` and restart. Open the owner URL on the devices you want to k
 python test_remote_fast.py
 ```
 
-Covers closed-by-default, pairing, forged cookie, allowlisted keys only, owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.
+Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number pad, volume level (range, digits only, paired device only), owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.

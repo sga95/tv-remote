@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-11 (night)
+- Layout control at the bottom of the page: Touch (default, unchanged), Future and 90s. The choice is kept on the phone only.
+- Future layout: neon look and a volume bar with a live number. Relative drag (3 px per step), level read from the TV and set directly, newest value at most every 60 ms.
+- 90s layout: number pad (keys 0 to 9 added to the allowlist), D-pad cross with OK, rubber-style keys.
+- New endpoints, both behind the same secret and pairing checks: `GET vol` (level and range) and `POST vol/<0-100>` (digits only).
+- Tests: 21 checks (number pad, volume range, digits only, paired device only).
+
 ## 2026-11-11 (late)
 - Touchpad: hold the finger pushed in one direction to keep scrolling, faster the further you push; axis lock; small steps back no longer trigger the opposite key (a step back needs a clearly larger move); swipe step 28 px; tap is easier to land (tolerance 16 px, 600 ms).
 

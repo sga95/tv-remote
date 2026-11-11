@@ -45,6 +45,12 @@ assert get("/" + TOKEN + "/", cookie="dev=forged")[0] == 404
 assert post("/" + TOKEN + "/key/OK", cookie="dev=" + cookie)[0] == 200 and "KEYCODE_DPAD_CENTER" in sent[-1]
 assert post("/" + TOKEN + "/key/OK; reboot", cookie="dev=" + cookie)[0] == 404, "only allowlisted keys"
 assert post("/" + TOKEN + "/snd/Evil", cookie="dev=" + cookie)[0] == 404
+assert post("/" + TOKEN + "/key/7", cookie="dev=" + cookie)[0] == 200 and sent[-1].endswith("KEYCODE_7"), "number pad"
+assert post("/" + TOKEN + "/vol/40", cookie="dev=" + cookie)[0] == 200 and sent[-1].endswith("--stream 3 --set 40"), "volume bar sets the level"
+assert post("/" + TOKEN + "/vol/101", cookie="dev=" + cookie)[0] == 404, "volume above the range is refused"
+assert post("/" + TOKEN + "/vol/5; reboot", cookie="dev=" + cookie)[0] == 404, "volume takes digits only"
+ns["vol_get"] = lambda: {"v": 1, "max": 100}  # no adb in the test
+assert get("/" + TOKEN + "/vol", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/vol")[0] == 404, "volume read needs a paired device"
 assert get("/" + TOKEN + "/stats", cookie="dev=" + cookie)[0] == 404, "status panel is owner only"
 assert get("/" + ADMIN + "/stats")[0] == 200
 assert get("/" + ADMIN + "/", ip="8.8.8.8")[0] == 404, "non-LAN client refused"

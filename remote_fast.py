@@ -12,7 +12,7 @@ Hardening (LAN-only tool):
 TLS is mandatory (no cert.pem and key.pem = no start). Secrets live in files next to the script, never in the code.
 Speed: one persistent `adb shell` (no adb process per tap), HTTP keep-alive, page reacts on pointerdown.
 """
-import collections, hashlib, hmac, ipaddress, json, os, secrets, socket, ssl, subprocess, sys, threading, time
+import collections, hashlib, hmac, ipaddress, json, os, re, secrets, socket, ssl, subprocess, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
@@ -39,7 +39,9 @@ KEYS = {  # label -> adb keycode
     "Play/Pause": "KEYCODE_MEDIA_PLAY_PAUSE", "Ch+": "KEYCODE_CHANNEL_UP", "Ch-": "KEYCODE_CHANNEL_DOWN",
     "Input": "KEYCODE_TV_INPUT",
     "Pause": "KEYCODE_MEDIA_PAUSE",  # not on the page: for phone automations (pause only, never toggles)
+    **{str(n): f"KEYCODE_{n}" for n in range(10)},  # number pad of the 90s layout
 }
+VOL = "cmd media_session volume --stream 3 "  # 3 = STREAM_MUSIC; the volume bar reads and sets the level directly
 APPS = {  # label -> (package, color)
     "Netflix": ("com.netflix.ninja", "#e50914"), "Prime": ("com.amazon.amazonvideo.livingroom", "#00a8e1"),
     "YouTube": ("com.google.android.youtube.tv", "#ff0000"), "Spotify": ("com.spotify.tv.android", "#1db954"),
@@ -185,6 +187,16 @@ def tv(cmd):
         ST["ms_max"] = max(ST["ms_max"], ms)
 
 
+def vol_get():
+    """Current TV volume and its top value, read with a one-off adb call (the persistent shell has no stdout). {} if unreadable."""
+    try:
+        o = subprocess.run([ADB, "-s", TV, "shell", VOL + "--get"], capture_output=True, text=True, timeout=4, creationflags=NOWIN).stdout
+        m = re.search(r"volume is (\d+) in range \[\d+\.\.(\d+)\]", o)
+        return {"v": int(m[1]), "max": int(m[2])}
+    except (subprocess.TimeoutExpired, OSError, TypeError):
+        return {}
+
+
 def stats():
     try:
         socket.create_connection((TV.split(":")[0], 5555), 0.5).close()
@@ -247,11 +259,31 @@ h2{margin:6px 2px 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase
 .ghost{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px;border-radius:50%;background:#ffffff26;box-shadow:0 0 0 6px #ffffff0d;opacity:0;pointer-events:none;animation:hint 7s 1.2s infinite}
 .used .ghost{display:none}
 @keyframes hint{0%{opacity:0;transform:translate(-70px,0)}8%{opacity:.9}30%{opacity:.9;transform:translate(70px,0)}38%,39%{opacity:0;transform:translate(0,-60px)}46%{opacity:.9}68%{opacity:.9;transform:translate(0,60px)}76%,100%{opacity:0;transform:translate(0,60px)}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}.ghost{animation:none}}"""
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.ghost{animation:none}}
+#lay{grid-template-columns:repeat(3,1fr)}
+#vol,.dp,.num{display:none}
+#vol{position:relative;flex:1;min-height:100px;border-radius:22px;background:#04090f;border:1px solid var(--bd);overflow:hidden;touch-action:none}
+#vol i{position:absolute;left:0;right:0;bottom:0;height:var(--v,0%);background:linear-gradient(0deg,#0b4a6b,var(--ac));box-shadow:0 0 18px var(--ac)}
+#vol b{position:absolute;inset:0;display:grid;place-items:center;font:700 22px ui-monospace,monospace;text-shadow:0 0 8px #000}
+.fx{--bg:#03060d;--s:#07121f;--s2:#0c2036;--bd:#14405f;--tx:#d8f6ff;--mu:#5b8fb0;--ac:#39e6ff;font-family:ui-monospace,monospace}
+.fx button,.fx .pill,.fx .pad,.fx .seg{box-shadow:0 0 14px #39e6ff1f,inset 0 0 10px #39e6ff12}
+.fx .pad{background:radial-gradient(circle,#1c5f85 1.3px,transparent 1.9px) var(--bx,0) var(--by,0)/22px 22px,radial-gradient(circle,#0a2236,#040b14 72%)}
+.fx .e{color:#1c5f85}.fx .ring{border-color:#1c5f85}
+.fx #vol{display:block}.fx .v{display:none}
+.r90{--bg:#3a342c;--s:#4b4c50;--s2:#606166;--bd:#2a2a2d;--tx:#f1efe6;--mu:#a8a59a;--ac:#f1efe6;font-family:Arial Narrow,Arial,sans-serif}
+.r90 main{max-width:330px;background:#1c1c1e;border-radius:38px;padding:22px 18px;border:2px solid #0d0d0e;box-shadow:inset 0 2px 0 #3a3a3e,0 12px 30px #0008}
+.r90 button{border-radius:10px;font-weight:700;box-shadow:0 4px 0 #111,inset 0 1px 0 #7b7c82}.r90 button:active{transform:translateY(3px);box-shadow:0 1px 0 #111}
+.r90 .pill,.r90 .seg{background:transparent;border:0;padding:0}.r90 .pill button,.r90 .seg button{background:var(--s);color:var(--tx)}.r90 .seg button.on{background:var(--s2)}
+.r90 .pw{background:#c22d24;color:#fff}.r90 .go{border-radius:50%}
+.r90 .pad{display:none}.r90 .dp,.r90 .num{display:grid}
+.num{grid-template-columns:repeat(3,1fr);gap:10px;order:-1}.num button{height:44px}.num button:last-child{grid-column:2}
+.dp{grid-template:repeat(3,62px)/repeat(3,62px);gap:8px;justify-content:center}.dp button{height:auto}
+.gu{grid-area:1/2}.gl{grid-area:2/1}.go{grid-area:2/2}.gr{grid-area:2/3}.gd{grid-area:3/2}
+.gl svg{transform:rotate(-90deg)}.gr svg{transform:rotate(90deg)}.gd svg{transform:rotate(180deg)}"""
 
 JS = """const T='@TOK@',p=u=>{navigator.vibrate&&navigator.vibrate(10);fetch('/'+T+'/'+u,{method:'POST'})},
 k=b=>p('key/'+encodeURIComponent(b)),a=n=>p('app/'+encodeURIComponent(n)),
-s=(n,el)=>{p('snd/'+encodeURIComponent(n));document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===el))},
+s=(n,el)=>{p('snd/'+encodeURIComponent(n));el.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===el))},
 fx=(el,c)=>{el.classList.add(c);setTimeout(()=>el.classList.remove(c),180)};
 const pad=document.getElementById('pad'),D={Left:'l',Right:'r',Up:'u',Down:'d'},nav=d=>{k(d);fx(pad.querySelector('.'+D[d]),'hit')};
 const STEP=28,TAP=16;let sx=null,sy,ax,ay,t0,mv,px,py,ox=0,oy=0,lock,last,mt,rt,tick;
@@ -268,7 +300,18 @@ if(!d)return;
 const back=last&&((last=='Right'&&d=='Left')||(last=='Left'&&d=='Right')||(last=='Up'&&d=='Down')||(last=='Down'&&d=='Up'));
 if(back&&Math.max(Math.abs(dx),Math.abs(dy))<STEP*1.7)return;
 lock=(d=='Left'||d=='Right')?'x':'y';last=d;ax=px;ay=py;rt=Date.now();nav(d)};
-pad.onpointerup=()=>{if(sx!=null&&mv<TAP&&Date.now()-t0<600){k('OK');fx(pad.querySelector('.ring'),'hit')}stop()};pad.onpointercancel=stop;"""
+pad.onpointerup=()=>{if(sx!=null&&mv<TAP&&Date.now()-t0<600){k('OK');fx(pad.querySelector('.ring'),'hit')}stop()};pad.onpointercancel=stop;
+const vol=document.getElementById('vol');let vm=100,vv=null,vs=null,v0=null,vy,vt=0,vq;
+const vshow=v=>{vv=v;vol.style.setProperty('--v',v/vm*100+'%');vol.lastChild.textContent=v};
+const vget=()=>fetch('/'+T+'/vol').then(r=>r.json()).then(j=>{if(j.max){vm=j.max;vs=j.v;vshow(j.v)}}).catch(()=>{});
+// The newest level wins and at most one command goes out every 60 ms (the TV needs about 40 ms for one), so the TV follows the finger without a queue.
+const vsend=()=>{clearTimeout(vq);const w=60-(Date.now()-vt);if(w>0){vq=setTimeout(vsend,w);return}if(vs!==vv){vt=Date.now();vs=vv;fetch('/'+T+'/vol/'+vv,{method:'POST'})}};
+// Relative drag, 3 px per step: touching the bar never jumps the volume, only moving the finger changes it.
+vol.onpointerdown=e=>{if(vv==null)return;vol.setPointerCapture(e.pointerId);v0=vv;vy=e.clientY};
+vol.onpointermove=e=>{if(v0==null)return;vshow(Math.max(0,Math.min(vm,v0+Math.round((vy-e.clientY)/3))));vsend()};
+vol.onpointerup=vol.onpointercancel=()=>{v0=null};
+const lay=n=>{document.body.className=n;try{localStorage.lay=n}catch(e){}document.querySelectorAll('#lay button').forEach(x=>x.classList.toggle('on',x.dataset.l==n));if(n=='fx')vget()};
+let l0='';try{l0=localStorage.lay||''}catch(e){}lay(l0);document.onvisibilitychange=()=>{document.hidden||document.body.className!='fx'||vget()};"""
 
 STATS_JS = """const st=()=>fetch('/'+T+'/stats').then(r=>r.json()).then(j=>{document.getElementById('st').textContent=Object.entries(j).map(e=>e.join(': ')).join('\\n')});st();setInterval(st,5000)"""
 
@@ -279,13 +322,20 @@ def page(tok, admin=False):
     apps = "".join(f'<button class=app style="--c:{c}" onpointerdown="a(\'{n}\')">{n}</button>' for n, (_, c) in APPS.items())
     snd = "".join(f'<button onpointerdown="s(\'{n}\',this)">{n}</button>' for n in SND)
     edges = "".join(f'<i class="e {d}">{CHEV}</i>' for d in "udlr")
-    body = (f'<main><section class=apps>{apps}</section>'
+    # Extra layouts reuse the same page: a body class (kept in the phone's localStorage) shows or hides these blocks.
+    num = "".join(f'<button onpointerdown="k(\'{n}\')">{n}</button>' for n in "1234567890")
+    dp = "".join(f'<button class=g{c} onpointerdown="k(\'{n}\')" aria-label="{n}">{"OK" if n == "OK" else CHEV}</button>'
+                 for c, n in zip("ulord", ("Up", "Left", "OK", "Right", "Down")))
+    lay = "".join(f'<button data-l="{c}" onpointerdown="lay(\'{c}\')">{n}</button>' for c, n in (("", "Touch"), ("fx", "Future"), ("r90", "90s")))
+    body = (f'<main><section class=apps>{apps}</section><section class=num>{num}</section>'
             f'<section class=pad id=pad role=application aria-label="Touchpad: swipe to move, tap to select">{edges}<i class=ring></i><i class=ghost></i></section>'
+            f'<section class=dp>{dp}</section>'
             f'<section class=nav>{b("Back")}{b("Home")}{b("Menu")}</section>'
-            f'<section class=dock><div class=pill>{b("Vol+")}{b("Mute")}{b("Vol-")}</div>'
+            f'<section class=dock><div class=pill>{b("Vol+", "v")}<div id=vol role=slider aria-label="Volume: drag up or down"><i></i><b>--</b></div>{b("Mute")}{b("Vol-", "v")}</div>'
             f'<div class=mid>{b("Power", "pw")}{b("Play/Pause")}{b("Input")}</div>'
             f'<div class=pill>{b("Ch+")}<em>CH</em>{b("Ch-")}</div></section>'
-            f'<h2>Sound</h2><section class=seg>{snd}</section>' + ("<pre id=st></pre>" if admin else "") + "</main>")
+            f'<h2>Sound</h2><section class=seg>{snd}</section>'
+            f'<h2>Layout</h2><section class=seg id=lay>{lay}</section>' + ("<pre id=st></pre>" if admin else "") + "</main>")
     js = JS.replace("@TOK@", tok) + (";" + STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
             '<meta name=color-scheme content=dark><meta name=theme-color content="#0a0a0f"><meta name=apple-mobile-web-app-capable content=yes>'
@@ -345,6 +395,8 @@ class H(BaseHTTPRequestHandler):
                 del DEVS[:-10]
                 save_devs()
             self.reply(200, page(ADMIN if self.admin else TOKEN, self.admin).encode("utf-8"), cookie=new)
+        elif rest == "vol":
+            self.reply(200, json.dumps(vol_get()).encode(), "application/json")
         elif rest == "stats" and self.admin:
             self.reply(200, json.dumps(stats()).encode(), "application/json")
         else:
@@ -364,6 +416,9 @@ class H(BaseHTTPRequestHandler):
             # launch first, then free the TV's small RAM: stop every other streaming app (never the launcher itself)
             stop = "".join("; am force-stop " + p for p, _ in APPS.values() if p not in (pkg, "io.freemytv")) if pkg != "io.freemytv" else ""
             tv("monkey -p " + pkg + " -c android.intent.category.LEANBACK_LAUNCHER 1" + stop)
+            return self.reply(200, b"ok", "text/plain")
+        if kind == "vol" and name.isdecimal() and len(name) <= 3 and int(name) <= 100:  # digits only, re-printed by int(): nothing else reaches the TV
+            tv(VOL + "--set " + str(int(name)))
             return self.reply(200, b"ok", "text/plain")
         if kind == "snd" and name in SND:
             tv(SND[name])
