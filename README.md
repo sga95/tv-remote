@@ -10,10 +10,11 @@ A phone web page that works as a remote control for an Android TV. One small Pyt
 - Sound presets (Voice, Movie, Night, Normal) that write the TV's own sound settings. The original values are kept in a restore file.
 - Layouts, chosen with the Layout control at the bottom of the page. The choice is kept on the phone (localStorage), the server stores nothing about it.
   - Touch (default): the page described above.
-  - Future: neon look, and the volume buttons become a bar with a live number. Drag up or down anywhere on it: 3 px per step, relative to where the finger landed, so a touch alone never jumps the volume. The page reads the TV's level when the layout opens, then sets the level directly (`cmd media_session volume`, stream 3) with the newest value at most every 60 ms, so the TV follows the finger smoothly.
+  - Future: neon look, and the volume buttons become a bar with a live number. Drag up or down anywhere on it: 3 px per step, relative to where the finger landed, so a touch alone never jumps the volume. The number follows the finger at once and the TV walks to it. The tested TV ignores a direct "set volume" (`cmd media_session volume --set` and `--adj` do nothing) and only obeys the volume key, about 0.2 s per step, so the page asks for up to 3 key presses per request, sends the next request only when those are done and always towards the newest number: nothing queues up, a change of direction takes effect at once, and the TV moves at about 4 steps per second. When it has caught up the real level is read back. The channel buttons are replaced by a number pad: type the channel number.
   - 90s: a classic button remote. Number pad, a D-pad cross with OK instead of the touchpad, raised rubber-style keys.
   - Simple: only a large D-pad with OK, Back, Home, volume, mute and power. Everything else is hidden. Chosen from a short review of remote usability sources: few large keys and a physical-style D-pad are what people get on with best.
-- Fits the screen: every layout is scaled as one piece (between 0.7 and 1.6 times) to the free height and width, and centred, so a normal phone shows the whole remote without scrolling and a tablet shows it larger. It rescales when the screen turns or the browser bar hides. Very small screens and phones held sideways stop at 0.7 and scroll.
+- Fits the screen: every layout is scaled as one piece (between 0.7 and 1.6 times) to the part of the screen that is really visible (browser address bar at the top or at the bottom, shown or hidden, notch and home indicator) and centred, so a normal phone shows the whole remote without scrolling and a tablet shows it larger. It rescales when the screen turns or a browser bar appears or hides. Very small screens and phones held sideways stop at 0.7 and scroll.
+- The first screen is the remote only. The settings (the Layout control and, for the owner, the status panel) start just below it and show after a scroll.
 - Owner view: the same remote plus a live status panel (TV reachable, apps in memory with their size, free RAM, adb shell state, uptime, taps, send time, wrong-secret attempts, lockouts, traffic watch, live records of suspicious events). Counters live in memory only.
 
 ## Files
@@ -66,11 +67,11 @@ By hand: put the TV address in `tv.txt` (and the adb path in `adb.txt` if adb is
 - Binds to the laptop LAN address only, serves private-range clients only.
 - Two secrets in the URL path, compared in constant time. Five wrong secrets lock that client address for five minutes. The owner secret always gets through.
 - Pairing: the owner URL gives the device a random 256-bit cookie (`Secure`, `HttpOnly`, `SameSite=Strict`, 90 days). The server stores only its SHA-256 hash (newest ten devices) and compares in constant time. Encrypting the cookie would add nothing: it is opaque random data and already encrypted by TLS.
-- Commands to the TV come only from fixed tables (keys, apps, sound presets). User input is only a lookup key, never part of a command. The one exception is the volume level: digits only, 0 to 100, converted to a number and printed again by the server before it reaches the TV. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
+- Commands to the TV come only from fixed tables (keys, apps, sound presets, 1 to 3 volume steps). User input is only a lookup key, never part of a command. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
 - Strict response headers (no-store, CSP with `default-src 'none'`, nosniff, no referrer, no framing, no camera/microphone/location). Requests and secrets are never logged. Nothing is recorded about what is watched.
 - Traffic watch: every 15 seconds the server checks its own and adb's connections. Anything to the internet or to a host other than the TV is recorded and turns the panel to ALERT. Inbound from non-LAN addresses is recorded too. Limits: Windows only (it reads `tasklist` and `netstat`), TCP only, sampled every 15 seconds, so a very short connection can be missed. On other systems the panel says "not available on this system" and does not start the watch.
 - Exclusive port bind: a second server cannot share the port.
-- Known limits: the volume bar shows the level read when the Future layout opens or the page comes back to the front, so a change made meanwhile with another remote shows only then; the 90s D-pad sends one step per press (no hold to repeat); no cap on simultaneous LAN connections; self-signed certificate (the browser warns, trust on first use); a paired phone that is unlocked can use the remote; the first key after the TV was off can be lost; the certificate is tied to the laptop's LAN address and has a one-year life.
+- Known limits: the volume bar shows the level read when the Future layout opens, when the page comes back to the front and after each drag, so a change made meanwhile with another remote shows only then; a long drag takes the TV a few seconds to follow (about 4 steps per second, the TV's own limit for key presses over adb); the 90s D-pad sends one step per press (no hold to repeat); no cap on simultaneous LAN connections; self-signed certificate (the browser warns, trust on first use); a paired phone that is unlocked can use the remote; the first key after the TV was off can be lost; the certificate is tied to the laptop's LAN address and has a one-year life.
 
 ## Running on Windows
 
@@ -95,7 +96,7 @@ Every promise above, and the check behind it (`python test_remote_fast.py`). "No
 | Closed by default, the plain URL needs a paired device | closed-by-default and right-secret-without-cookie checks | tested |
 | Pairing cookie: only its hash is stored, a forged cookie is refused | stored-hash and forged-cookie checks | tested |
 | Cookie is `Secure`, `HttpOnly`, `SameSite=Strict`, 90 days | cookie flags check | tested |
-| Commands only from fixed tables, volume digits only | allowlist, `snd/Evil`, digits-only checks | tested |
+| Commands only from fixed tables, volume steps included | allowlist, `snd/Evil`, volume step checks | tested |
 | Status panel for the owner only | status panel check | tested |
 | Private-range clients only | non-LAN client check | tested |
 | Five wrong secrets lock the address, the owner still gets in | lockout checks | tested |
@@ -115,4 +116,4 @@ What the "stays local" checks show: this version of the file holds no way to cal
 python test_remote_fast.py
 ```
 
-Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number pad, volume level (range, digits only, paired device only), owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.
+Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number pad, volume steps (fixed table, at most 3, level read by a paired device only), owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.

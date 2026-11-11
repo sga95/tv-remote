@@ -42,7 +42,9 @@ KEYS = {  # label -> adb keycode
     "Pause": "KEYCODE_MEDIA_PAUSE",  # not on the page: for phone automations (pause only, never toggles)
     **{str(n): f"KEYCODE_{n}" for n in range(10)},  # number pad of the 90s layout
 }
-VOL = "cmd media_session volume --stream 3 "  # 3 = STREAM_MUSIC; the volume bar reads and sets the level directly
+VOL = "cmd media_session volume --stream 3 "  # 3 = STREAM_MUSIC; used to read the level only: this TV ignores --set and --adj
+# Volume bar: the only thing the TV obeys is the volume key, so the page asks for 1 to 3 presses at a time (fixed strings, nothing else).
+VSTEP = {f"{d}/{n}": "input keyevent" + f" KEYCODE_VOLUME_{d.upper()}" * n for d in ("up", "down") for n in (1, 2, 3)}
 APPS = {  # label -> (package, color)
     "Netflix": ("com.netflix.ninja", "#e50914"), "Prime": ("com.amazon.amazonvideo.livingroom", "#00a8e1"),
     "YouTube": ("com.google.android.youtube.tv", "#ff0000"), "Spotify": ("com.spotify.tv.android", "#1db954"),
@@ -230,8 +232,10 @@ def stats():
 
 CSS = """:root{--bg:#0a0a0f;--s:#14141c;--s2:#1d1d29;--bd:#242431;--tx:#e9e9ef;--mu:#7d7d8c;--ac:#6ea8ff}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.2 -apple-system,system-ui,sans-serif;padding:14px 14px max(24px,env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none;min-height:100dvh;display:flex}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.2 -apple-system,system-ui,sans-serif;padding:max(14px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none}
+.scr{min-height:calc(100vh - 14px);min-height:calc(100dvh - 14px);display:flex}
 main{max-width:440px;width:100%;margin:auto;display:grid;gap:12px}
+footer{max-width:440px;margin:0 auto;padding-top:24px;display:grid;gap:12px}.snd{order:2}
 button{font:inherit;color:var(--tx);background:var(--s);border:1px solid var(--bd);border-radius:20px;height:56px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s,background .15s}
 button:active{transform:scale(.95);background:var(--s2)}
 button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
@@ -273,6 +277,8 @@ h2{margin:6px 2px 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase
 .fx .pad{background:radial-gradient(circle,#1c5f85 1.3px,transparent 1.9px) var(--bx,0) var(--by,0)/22px 22px,radial-gradient(circle,#0a2236,#040b14 72%)}
 .fx .e{color:#1c5f85}.fx .ring{border-color:#1c5f85}
 .fx #vol{display:block}.fx .v{display:none}
+.fx .num{display:grid;grid-template-columns:repeat(5,1fr);order:1}.fx .num button:last-child{grid-column:auto}
+.fx .dock .pill:last-child{display:none}.fx .dock{grid-template-columns:repeat(2,1fr)}
 .r90{--bg:#3a342c;--s:#4b4c50;--s2:#606166;--bd:#2a2a2d;--tx:#f1efe6;--mu:#a8a59a;--ac:#f1efe6;font-family:Arial Narrow,Arial,sans-serif}
 .r90 main{max-width:330px;background:#1c1c1e;border-radius:38px;padding:22px 18px;border:2px solid #0d0d0e;box-shadow:inset 0 2px 0 #3a3a3e,0 12px 30px #0008}
 .r90 button{border-radius:10px;font-weight:700;box-shadow:0 4px 0 #111,inset 0 1px 0 #7b7c82}.r90 button:active{transform:translateY(3px);box-shadow:0 1px 0 #111}
@@ -304,17 +310,22 @@ const back=last&&((last=='Right'&&d=='Left')||(last=='Left'&&d=='Right')||(last=
 if(back&&Math.max(Math.abs(dx),Math.abs(dy))<STEP*1.7)return;
 lock=(d=='Left'||d=='Right')?'x':'y';last=d;ax=px;ay=py;rt=Date.now();nav(d)};
 pad.onpointerup=()=>{if(sx!=null&&mv<TAP&&Date.now()-t0<600){k('OK');fx(pad.querySelector('.ring'),'hit')}stop()};pad.onpointercancel=stop;
-const vol=document.getElementById('vol');let vm=100,vv=null,vs=null,v0=null,vy,vt=0,vq;
+const vol=document.getElementById('vol');let vm=100,vv=null,vs=null,v0=null,vy,vb=0;
 const vshow=v=>{vv=v;vol.style.setProperty('--v',v/vm*100+'%');vol.lastChild.textContent=v};
-const vget=()=>fetch('/'+T+'/vol').then(r=>r.json()).then(j=>{if(j.max){vm=j.max;vs=j.v;vshow(j.v)}}).catch(()=>{});
-// The newest level wins and at most one command goes out every 60 ms (the TV needs about 40 ms for one), so the TV follows the finger without a queue.
-const vsend=()=>{clearTimeout(vq);const w=60-(Date.now()-vt);if(w>0){vq=setTimeout(vsend,w);return}if(vs!==vv){vt=Date.now();vs=vv;fetch('/'+T+'/vol/'+vv,{method:'POST'})}};
+const vget=()=>fetch('/'+T+'/vol').then(r=>r.json()).then(j=>{if(j.max&&v0==null&&!vb){vm=j.max;vs=j.v;vshow(j.v)}}).catch(()=>{});
+// The TV ignores a direct "set volume" and only obeys volume keys (about 0.2 s each), so the bar walks the TV towards the number:
+// up to 3 key presses per request, the next request only when those are done and always towards the newest number, so nothing queues up
+// and a change of direction takes effect at once. When the TV has caught up the real level is read back.
+const vpump=()=>{if(vb)return;const d=Math.max(-3,Math.min(3,vv-vs));if(!d){v0==null&&vget();return}vs+=d;vb=1;
+fetch('/'+T+'/vol/'+(d>0?'up/':'down/')+Math.abs(d),{method:'POST'});setTimeout(()=>{vb=0;vpump()},150+200*Math.abs(d))};
 // Relative drag, 3 px per step: touching the bar never jumps the volume, only moving the finger changes it.
 vol.onpointerdown=e=>{if(vv==null)return;vol.setPointerCapture(e.pointerId);v0=vv;vy=e.clientY};
-vol.onpointermove=e=>{if(v0==null)return;vshow(Math.max(0,Math.min(vm,v0+Math.round((vy-e.clientY)/3))));vsend()};
-vol.onpointerup=vol.onpointercancel=()=>{v0=null};
-// Fit the whole remote to the screen: one zoom factor from the free height and width (38 and 28 px are the body padding), kept between 0.7 and 1.6.
-const M=document.querySelector('main'),fit=()=>{M.style.zoom=1;M.style.zoom=Math.max(.7,Math.min(1.6,(innerHeight-38)/M.offsetHeight,(innerWidth-28)/M.offsetWidth))};onresize=fit;
+vol.onpointermove=e=>{if(v0==null)return;vshow(Math.max(0,Math.min(vm,v0+Math.round((vy-e.clientY)/3))));vpump()};
+vol.onpointerup=vol.onpointercancel=()=>{if(v0!=null){v0=null;vpump()}};
+// Fit the remote to the part of the screen that is really visible (browser bars shown or hidden, top or bottom, notch): one zoom factor
+// from the free height and width, kept between 0.7 and 1.6. The settings (Layout and below) start under this first screen.
+const M=document.querySelector('main'),fit=()=>{const V=window.visualViewport,h=(V?V.height:innerHeight)-parseFloat(getComputedStyle(document.body).paddingTop)-14;
+M.style.zoom=1;M.style.zoom=Math.max(.7,Math.min(1.6,h/M.offsetHeight,(innerWidth-28)/M.offsetWidth))};onresize=fit;window.visualViewport&&(visualViewport.onresize=fit);
 const lay=n=>{document.body.className=n;try{localStorage.lay=n}catch(e){}document.querySelectorAll('#lay button').forEach(x=>x.classList.toggle('on',x.dataset.l==n));if(n=='fx')vget();fit()};
 let l0='';try{l0=localStorage.lay||''}catch(e){}lay(l0);document.onvisibilitychange=()=>{document.hidden||document.body.className!='fx'||vget()};"""
 
@@ -332,15 +343,15 @@ def page(tok, admin=False):
     dp = "".join(f'<button class=g{c} onpointerdown="k(\'{n}\')" aria-label="{n}">{"OK" if n == "OK" else CHEV}</button>'
                  for c, n in zip("ulord", ("Up", "Left", "OK", "Right", "Down")))
     lay = "".join(f'<button data-l="{c}" onpointerdown="lay(\'{c}\')">{n}</button>' for c, n in (("", "Touch"), ("fx", "Future"), ("r90", "90s"), ("sm", "Simple")))
-    body = (f'<main><section class=apps>{apps}</section><section class=num>{num}</section>'
+    body = (f'<div class=scr><main><section class=apps>{apps}</section><section class=num>{num}</section>'
             f'<section class=pad id=pad role=application aria-label="Touchpad: swipe to move, tap to select">{edges}<i class=ring></i><i class=ghost></i></section>'
             f'<section class=dp>{dp}</section>'
             f'<section class=nav>{b("Back")}{b("Home")}{b("Menu")}</section>'
             f'<section class=dock><div class=pill>{b("Vol+", "v")}<div id=vol role=slider aria-label="Volume: drag up or down"><i></i><b>--</b></div>{b("Mute")}{b("Vol-", "v")}</div>'
             f'<div class=mid>{b("Power", "pw")}{b("Play/Pause")}{b("Input")}</div>'
             f'<div class=pill>{b("Ch+")}<em>CH</em>{b("Ch-")}</div></section>'
-            f'<h2 class=snd>Sound</h2><section class="seg snd">{snd}</section>'
-            f'<h2>Layout</h2><section class=seg id=lay>{lay}</section>' + ("<pre id=st></pre>" if admin else "") + "</main>")
+            f'<h2 class=snd>Sound</h2><section class="seg snd">{snd}</section></main></div>'
+            f'<footer><h2>Layout</h2><section class=seg id=lay>{lay}</section>' + ("<pre id=st></pre>" if admin else "") + "</footer>")
     js = JS.replace("@TOK@", tok) + (";" + STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
             '<meta name=color-scheme content=dark><meta name=theme-color content="#0a0a0f"><meta name=apple-mobile-web-app-capable content=yes>'
@@ -422,8 +433,8 @@ class H(BaseHTTPRequestHandler):
             stop = "".join("; am force-stop " + p for p, _ in APPS.values() if p not in (pkg, "io.freemytv")) if pkg != "io.freemytv" else ""
             tv("monkey -p " + pkg + " -c android.intent.category.LEANBACK_LAUNCHER 1" + stop)
             return self.reply(200, b"ok", "text/plain")
-        if kind == "vol" and name.isdecimal() and len(name) <= 3 and int(name) <= 100:  # digits only, re-printed by int(): nothing else reaches the TV
-            tv(VOL + "--set " + str(int(name)))
+        if kind == "vol" and name in VSTEP:
+            tv(VSTEP[name])
             return self.reply(200, b"ok", "text/plain")
         if kind == "snd" and name in SND:
             tv(SND[name])

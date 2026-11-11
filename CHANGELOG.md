@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-12
+- Fix: the Future volume bar moved its number but not the TV. Measured on the TV: `cmd media_session volume --set` and `--adj` are accepted and ignored, only the volume key changes the level (one step per key, about 0.2 s each). The bar now sends 1 to 3 key presses per request, the next one only when those are done and towards the newest number, then reads the real level back. `POST vol/<0-100>` is replaced by `POST vol/up/<1-3>` and `POST vol/down/<1-3>`, a fixed table.
+- Future layout: the channel up and down buttons are replaced by a number pad.
+- The first screen is the remote only: the Layout control and the owner status panel moved below it, visible after a scroll.
+- Fit to screen now measures the really visible area (`visualViewport`, dynamic viewport height, safe-area inset at the top), so browser bars at the top or bottom, shown or hidden, no longer cover the remote.
+
 ## 2026-11-11 (fit to screen)
 - Every layout now scales as one piece to the screen (0.7 to 1.6 times, from the free height and width) and is centred; it rescales on rotation and resize. Checked at 375x812, 430x932 and 768x1024 (no scrolling in any layout); 320x568 and landscape phones stop at 0.7 and scroll.
 
