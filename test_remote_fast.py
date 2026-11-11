@@ -61,8 +61,8 @@ assert post("/" + TOKEN + "/key/OK", cookie="dev=" + cookie)[0] == 200 and "KEYC
 assert post("/" + TOKEN + "/key/OK; reboot", cookie="dev=" + cookie)[0] == 404, "only allowlisted keys"
 assert post("/" + TOKEN + "/snd/Evil", cookie="dev=" + cookie)[0] == 404
 assert post("/" + TOKEN + "/key/7", cookie="dev=" + cookie)[0] == 200 and sent[-1].endswith("KEYCODE_7"), "number pad"
-assert post("/" + TOKEN + "/vol/down/2", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "input keyevent KEYCODE_VOLUME_DOWN KEYCODE_VOLUME_DOWN", "volume bar presses the volume key"
-assert post("/" + TOKEN + "/vol/up/4", cookie="dev=" + cookie)[0] == 404, "at most 3 volume steps per request"
+assert post("/" + TOKEN + "/vol/down/2", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "input keyevent KEYCODE_VOLUME_DOWN & input keyevent KEYCODE_VOLUME_DOWN & ", "volume bar presses the volume key"
+assert post("/" + TOKEN + "/vol/up/6", cookie="dev=" + cookie)[0] == 404, "at most 5 volume steps per request"
 assert post("/" + TOKEN + "/vol/up/1; reboot", cookie="dev=" + cookie)[0] == 404, "volume steps come from a fixed table"
 ns["vol_get"] = lambda: {"v": 1, "max": 100}  # no adb in the test
 assert get("/" + TOKEN + "/vol", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/vol")[0] == 404, "volume read needs a paired device"

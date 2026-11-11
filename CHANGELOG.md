@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-12 (scroll, faster and safer volume, readable code)
+- Fix: the page stuttered and jammed while scrolling on a phone. The fit-to-screen code re-measured the remote every time a browser bar slid in or out, which happens during every scroll. It now sizes the remote once to the small viewport (`100svh`, bars showing) and again only on layout change or rotation; the first screen is as tall as the large viewport (`100lvh`), so the settings still start below it.
+- New strip with an arrow under the remote: a safe place to start a scroll (keys act on touch), and a tap jumps to the settings.
+- Volume bar faster: up to 5 key presses per request, sent side by side. Measured on the TV: 3 presses in 0.5 s, 6 in 0.75 s, about 8 steps per second instead of 4. Nothing faster exists on this TV: `--set`, `--adj` and `--show --set` are ignored.
+- Volume bar safety (`VOL_LIMITS`): maximum 50 by day and 30 at night (22:00 to 07:00), at most 10 steps up per drag, lowering never limited, amber number at the limit. Night comes from the phone's own clock in the page; no service is asked and nothing is sent or stored.
+- `remote_fast.py` rewritten for reading, same behaviour: sections in reading order, a file map and the safety rules at the top, detailed comments, named helpers, readable CSS and JS.
+
 ## 2026-11-12
 - Fix: the Future volume bar moved its number but not the TV. Measured on the TV: `cmd media_session volume --set` and `--adj` are accepted and ignored, only the volume key changes the level (one step per key, about 0.2 s each). The bar now sends 1 to 3 key presses per request, the next one only when those are done and towards the newest number, then reads the real level back. `POST vol/<0-100>` is replaced by `POST vol/up/<1-3>` and `POST vol/down/<1-3>`, a fixed table.
 - Future layout: the channel up and down buttons are replaced by a number pad.

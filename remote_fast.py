@@ -94,12 +94,20 @@ SND = {"Voice": _snd(1, 1, 60, 45), "Movie": _snd(0, 0, 55, 60), "Night": _snd(1
 
 # Volume. Reading the level works (stream 3 is the media stream), but the tested TV ignores a direct
 # "set volume" (--set and --adj do nothing): it only obeys the volume key. So the volume bar on the page
-# asks for 1, 2 or 3 key presses at a time, and these six fixed commands are all it can ask for.
+# asks for 1 to 5 key presses at a time, and these ten fixed commands are all it can ask for.
+# The presses of one request run side by side ("&"): measured on the TV, 3 take 0.5 s and 6 take 0.75 s,
+# about twice as fast as one after the other. That is the TV's own pace; nothing faster was found.
 VOL = "cmd media_session volume --stream 3 "
-VSTEP = {}  # "up/2" -> "input keyevent KEYCODE_VOLUME_UP KEYCODE_VOLUME_UP"
+VSTEP = {}  # "up/2" -> "input keyevent KEYCODE_VOLUME_UP & input keyevent KEYCODE_VOLUME_UP &"
 for way in ("up", "down"):
-    for presses in (1, 2, 3):
-        VSTEP[f"{way}/{presses}"] = "input keyevent" + f" KEYCODE_VOLUME_{way.upper()}" * presses
+    for presses in (1, 2, 3, 4, 5):
+        VSTEP[f"{way}/{presses}"] = f"input keyevent KEYCODE_VOLUME_{way.upper()} & " * presses
+
+# Volume bar safety, so a slip of the finger cannot blast the speakers or wake the house. Change the numbers here.
+# The bar never raises the volume above "day" (or above "night" between night_from and night_to o'clock),
+# and one drag raises it by at most "drag" steps: for more, lift the finger and drag again. Lowering is never limited.
+# Night is decided by the phone's own clock, inside the page: no time, place or time zone is asked of anyone.
+VOL_LIMITS = {"day": 50, "night": 30, "night_from": 22, "night_to": 7, "drag": 10}
 
 # ============================================================ 3. Secrets and pairing
 # Two secrets, each one the first part of an address:
@@ -321,11 +329,17 @@ CSS = """
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.2 -apple-system,system-ui,sans-serif;padding:max(14px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none}
 
-/* First screen = the remote, as tall as the visible screen. The settings (footer) start right below it. */
-.scr{min-height:calc(100vh - 14px);min-height:calc(100dvh - 14px);display:flex}
-main{max-width:440px;width:100%;margin:auto;display:grid;gap:12px}
+/* First screen = the remote. .scr is as tall as the screen with the browser bars hidden (lvh), so the settings (footer)
+   always start below the first screen. #sv is an invisible ruler as tall as the screen with the bars shown (svh): the
+   remote is sized to it once, so it always fits and nothing has to be re-measured while the page scrolls. */
+.scr{min-height:calc(100vh - 14px);min-height:calc(100lvh - 14px)}
+#sv{position:fixed;top:0;left:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none}
+main{max-width:440px;width:100%;margin:0 auto;display:grid;gap:12px}
 footer{max-width:440px;margin:0 auto;padding-top:24px;display:grid;gap:12px}
 .snd{order:2}
+/* The strip under the remote: the safe place to start a scroll (keys act the moment they are touched), or tap it to jump to the settings */
+.more{max-width:440px;height:30px;margin:6px auto 0;display:flex;align-items:center;justify-content:center;color:var(--mu)}
+.more svg{transform:rotate(180deg)}
 
 /* Buttons and icons */
 button{font:inherit;color:var(--tx);background:var(--s);border:1px solid var(--bd);border-radius:20px;height:56px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s,background .15s}
@@ -391,6 +405,7 @@ h2{margin:6px 2px 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase
 #vol{position:relative;flex:1;min-height:100px;border-radius:22px;background:#04090f;border:1px solid var(--bd);overflow:hidden;touch-action:none}
 #vol i{position:absolute;left:0;right:0;bottom:0;height:var(--v,0%);background:linear-gradient(0deg,#0b4a6b,var(--ac));box-shadow:0 0 18px var(--ac)}
 #vol b{position:absolute;inset:0;display:grid;place-items:center;font:700 22px ui-monospace,monospace;text-shadow:0 0 8px #000}
+#vol.cap b{color:#ffb84d}  /* the number turns amber when the drag has reached its safety limit */
 
 /* Layout "Future" (.fx): neon colours and glow, volume bar instead of Vol+/Vol- (.v), number pad instead of the channel pill */
 .fx{--bg:#03060d;--s:#07121f;--s2:#0c2036;--bd:#14405f;--tx:#d8f6ff;--mu:#5b8fb0;--ac:#39e6ff;font-family:ui-monospace,monospace}
@@ -506,15 +521,23 @@ pad.onpointerup = () => {
 pad.onpointercancel = release;
 
 // ---------------------------------------------------------------- Volume bar (Future layout)
-// The number follows the finger at once; the TV walks to it. The TV only obeys volume keys (about 0.2 s each),
-// so the page asks for at most 3 presses per request, sends the next request only when those are done and always
-// towards the newest number. Nothing queues up, and a change of direction takes effect at once.
+// The number follows the finger at once; the TV walks to it. The TV only obeys volume keys, so the page asks for
+// at most 5 presses per request (the first leaves the moment the finger moves), sends the next request only when
+// those are done and always towards the newest number. Nothing queues up, a change of direction takes effect at
+// once, and the TV moves at about 8 steps a second, which is as fast as it accepts them.
 const vol = document.getElementById('vol');
+const LIMIT = @LIMITS@;   // the safety numbers from VOL_LIMITS in the server file
+// Night by this phone's own clock only. Nothing is asked of any service and nothing is sent.
+const isNight = () => {
+  const hour = new Date().getHours(), from = LIMIT.night_from, to = LIMIT.night_to;
+  return from > to ? (hour >= from || hour < to) : (hour >= from && hour < to);
+};
 let volMax = 100,
     wanted = null,      // the number on the bar (null until the TV's level has been read)
     reached = null,     // where the TV is, counting the key presses already sent
     dragFrom = null,    // the bar's number when the finger landed (null = no finger on the bar)
     dragY,              // where the finger landed
+    dragTop,            // the highest number this drag may reach
     busy = 0;           // 1 while the TV is still working through the last presses
 const showVol = v => { wanted = v; vol.style.setProperty('--v', v / volMax * 100 + '%'); vol.lastChild.textContent = v; };
 // Ask the server for the TV's real level. Ignored while a drag or key presses are in progress.
@@ -523,33 +546,45 @@ const readVol = () => fetch('/'+T+'/vol').then(r => r.json()).then(j => {
 }).catch(() => {});
 const walk = () => {
   if (busy) return;
-  const steps = Math.max(-3, Math.min(3, wanted - reached));
+  const steps = Math.max(-5, Math.min(5, wanted - reached));
   if (!steps) { dragFrom == null && readVol(); return; }    // arrived: once the finger is up, read the real level back
   reached += steps; busy = 1;
   fetch('/'+T+'/vol/' + (steps > 0 ? 'up/' : 'down/') + Math.abs(steps), {method: 'POST'});
-  setTimeout(() => { busy = 0; walk(); }, 150 + 200 * Math.abs(steps));   // the time the TV needs for these presses
+  setTimeout(() => { busy = 0; walk(); }, 250 + 85 * Math.abs(steps));   // the time the TV needs for these presses (measured)
 };
 // The drag is relative, 3 px per step: touching the bar never jumps the volume, only moving the finger changes it.
-vol.onpointerdown = e => { if (wanted == null) return; vol.setPointerCapture(e.pointerId); dragFrom = wanted; dragY = e.clientY; };
+vol.onpointerdown = e => {
+  if (wanted == null) return;
+  vol.setPointerCapture(e.pointerId);
+  dragFrom = wanted; dragY = e.clientY;
+  // Safety ceiling for this drag: the day or night maximum and at most LIMIT.drag steps up, whichever is lower.
+  // If the TV is already louder than that (set with another remote), the bar simply cannot raise it further.
+  dragTop = Math.max(dragFrom, Math.min(volMax, isNight() ? LIMIT.night : LIMIT.day, dragFrom + LIMIT.drag));
+};
 vol.onpointermove = e => {
   if (dragFrom == null) return;
-  showVol(Math.max(0, Math.min(volMax, dragFrom + Math.round((dragY - e.clientY) / 3))));
+  const asked = dragFrom + Math.round((dragY - e.clientY) / 3);
+  vol.classList.toggle('cap', asked > dragTop);
+  showVol(Math.max(0, Math.min(dragTop, asked)));   // lowering is never limited
   walk();
 };
-vol.onpointerup = vol.onpointercancel = () => { if (dragFrom != null) { dragFrom = null; walk(); } };
+vol.onpointerup = vol.onpointercancel = () => { if (dragFrom != null) { dragFrom = null; vol.classList.remove('cap'); walk(); } };
 
 // ---------------------------------------------------------------- Fit to the screen
-// Scale the whole remote with one zoom factor so it fills the part of the screen that is really visible
-// (browser bars shown or hidden, at the top or at the bottom, notch). Never below 0.7 (keys too small) or above 1.6.
+// Scale the whole remote with one zoom factor so it fits the screen as it is with the browser bars showing
+// (the smallest it ever gets; #sv measures it), whether the bars sit at the top or the bottom. Never below 0.7
+// (keys too small) or above 1.6. It is done when the page opens, when the layout changes and when the phone is
+// turned, and NOT while scrolling: browser bars slide in and out during a scroll, and re-measuring on each of
+// those changes made the page stutter and jam.
 const M = document.querySelector('main');
 const fit = () => {
-  const view = window.visualViewport;
-  const freeHeight = (view ? view.height : innerHeight) - parseFloat(getComputedStyle(document.body).paddingTop) - 14;
+  const visible = document.getElementById('sv').offsetHeight || innerHeight;
+  const freeHeight = visible - parseFloat(getComputedStyle(document.body).paddingTop) - 50;   // 50 = the strip under the remote + a little air
   M.style.zoom = 1;   // measure the remote at its natural size first
   M.style.zoom = Math.max(.7, Math.min(1.6, freeHeight / M.offsetHeight, (innerWidth - 28) / M.offsetWidth));
 };
-onresize = fit;
-window.visualViewport && (visualViewport.onresize = fit);
+let fitWidth = innerWidth;
+onresize = () => { if (innerWidth != fitWidth) { fitWidth = innerWidth; fit(); } };   // a change of height alone is a browser bar: ignore it
 
 // ---------------------------------------------------------------- Layouts
 // A layout is just a class on <body>. The choice is kept on this phone (localStorage), the server never learns it.
@@ -602,9 +637,11 @@ def page(tok, admin=False):
         f'<div class=pill>{key("Ch+")}<em>CH</em>{key("Ch-")}</div>'
         '</section>'
         f'<h2 class=snd>Sound</h2><section class="seg snd">{sound}</section>'
-        '</main></div>'
+        '</main>'
+        f'<div class=more aria-label="Settings below" onclick="document.querySelector(\'footer\').scrollIntoView()">{CHEV}</div>'
+        '</div><i id=sv></i>'
         f'<footer><h2>Layout</h2><section class=seg id=lay>{layouts}</section>' + ("<pre id=st></pre>" if admin else "") + '</footer>')
-    script = JS.replace("@TOK@", tok) + (STATS_JS if admin else "")
+    script = JS.replace("@TOK@", tok).replace("@LIMITS@", json.dumps(VOL_LIMITS)) + (STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
             '<meta name=color-scheme content=dark><meta name=theme-color content="#0a0a0f"><meta name=apple-mobile-web-app-capable content=yes>'
             f'<title>TV remote</title><style>{CSS}</style></head><body>{body}<script>{script}</script></body></html>')
