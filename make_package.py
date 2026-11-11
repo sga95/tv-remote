@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Build the one-file download. Run: python make_package.py <version>   (for example 1.0.0)
 Output in dist/: tv-remote-<version>.zip and tv-remote-<version>.zip.sha256.
 The zip holds the program, the tests, the guided setup, the docs and SHA256SUMS (what setup.py checks).
@@ -5,7 +6,7 @@ It is reproducible: same files in, same zip and same SHA-256 out. Secrets, certi
 import hashlib, os, sys, zipfile
 
 D = os.path.dirname(os.path.abspath(__file__))
-FILES = ["README.md", "CHANGELOG.md", "remote_fast.py", "setup.py", "test_remote_fast.py"]
+FILES = ["LICENSE", "README.md", "CHANGELOG.md", "remote_fast.py", "setup.py", "test_remote_fast.py"]
 if len(sys.argv) != 2:
     sys.exit("usage: python make_package.py <version>")
 version = sys.argv[1]

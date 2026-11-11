@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Guided setup for the local TV remote. Run: python setup.py
 Safe to run again: it never overwrites an existing secret, certificate or setting.
 Standard library only. It does not change firewall, startup or system settings: it prints the commands for you to run."""
