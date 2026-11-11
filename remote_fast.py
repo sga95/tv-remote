@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Tiny LAN web remote: serves a button page and forwards key events to a TV via adb.
 Run: python remote_fast.py   Then open the printed URL on the phone (same Wi-Fi).
 

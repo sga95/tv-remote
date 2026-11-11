@@ -20,7 +20,11 @@ A phone web page that works as a remote control for an Android TV. One small Pyt
 | File | Purpose |
 | --- | --- |
 | `remote_fast.py` | The whole server and page. Standard library only. |
-| `test_remote_fast.py` | 21 assert checks, run on a temporary copy with its own secrets. |
+| `test_remote_fast.py` | Assert checks, run on a temporary copy with its own secrets. |
+| `setup.py` | Guided setup: checks the files, finds adb, asks for the TV, creates the certificate and secrets, runs the checks. |
+| `make_package.py` | Builds the one-file download with its SHA-256 (for maintainers). |
+| `LICENSE` | GNU Affero General Public License v3. |
+| `SHA256SUMS` | Only in the download: the hash of every file inside, checked by `setup.py`. |
 | `tv.txt` | TV address and adb port, for example `192.168.1.50:5555`. Required. |
 | `adb.txt` | Path to `adb` (optional, defaults to `adb` on PATH). |
 | `cert.pem`, `key.pem` | TLS certificate and key. Required: no certificate, no start. |
@@ -30,13 +34,30 @@ A phone web page that works as a remote control for an Android TV. One small Pyt
 
 The secret files and the key are never committed or published. The code holds no personal data.
 
+## Download and verify
+
+The release is one zip with its SHA-256. Before you open it, compare the hash of what you downloaded with the published one:
+
+- Windows PowerShell: `Get-FileHash .\tv-remote-<version>.zip -Algorithm SHA256`
+- Linux and macOS: `sha256sum tv-remote-<version>.zip`
+
+They must be identical. Inside the zip, `SHA256SUMS` lists the hash of every file and `setup.py` checks them again before it configures anything; it stops on the first mismatch. The build is reproducible: the same files always give the same zip and the same hash.
+
 ## Setup
 
-1. Install Python 3 and Android platform-tools (`adb`). Enable network debugging on the TV and connect once.
-2. Put the TV address in `tv.txt` (and the adb path in `adb.txt` if adb is not on PATH).
-3. Create a certificate for the laptop's LAN address, for example with OpenSSL, and save it as `cert.pem` and `key.pem` next to the script.
-4. Run `python remote_fast.py` (or `pythonw` for no window). The console prints the two URLs. Secrets are also in `token.txt` and `admin.txt`.
-5. On the phone open the **owner URL** once. This pairs the device (see Pairing). Then bookmark it, or use the plain URL.
+You need Python 3, Android platform-tools (`adb`, from developer.android.com/tools/releases/platform-tools) and OpenSSL (it ships with Git for Windows and with most Linux and macOS systems). Enable network debugging on the TV. Tested on Windows 11 only.
+
+Guided (recommended): unzip, open a terminal in the folder, run `python setup.py`. It
+1. verifies the files against `SHA256SUMS`;
+2. finds adb or asks for its path;
+3. asks for the TV address (home-network addresses only), writes `tv.txt` and tries `adb connect`;
+4. creates the TLS certificate for this computer's LAN address (valid one year);
+5. creates the two secrets (five random words each);
+6. runs the self-check.
+
+It never overwrites an existing file, can be run again safely and changes no system setting. It only prints the Windows commands for the firewall rule and for start at logon; you run them yourself. Then run `python remote_fast.py` (or `pythonw` for no window), open the **owner URL** printed in the console once on the phone to pair it, and bookmark it.
+
+By hand: put the TV address in `tv.txt` (and the adb path in `adb.txt` if adb is not on PATH), create `cert.pem` and `key.pem` for the computer's LAN address with OpenSSL, then run `python remote_fast.py`. The secrets are created on first start and kept in `token.txt` and `admin.txt`.
 
 ## Security model
 
@@ -59,6 +80,10 @@ The secret files and the key are never committed or published. The code holds no
 ## Unpair a device
 
 Delete `device.txt` and restart. Open the owner URL on the devices you want to keep.
+
+## License
+
+GNU Affero General Public License v3.0 or later (see `LICENSE`). You may use and change the code, but if you distribute it, or let others use a modified version over a network, you must publish your version under the same license.
 
 ## Tests
 

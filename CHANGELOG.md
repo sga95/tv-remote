@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-11 (package and license)
+- Licensed under GNU AGPL-3.0-or-later (`LICENSE`, SPDX line in the code files).
+- Guided setup `setup.py`: checks `SHA256SUMS`, finds adb, asks for the TV address, creates the certificate and secrets, runs the self-check; never overwrites, changes no system setting, prints the firewall and logon commands for you to run.
+- `make_package.py` builds the one-file download (`tv-remote-<version>.zip` plus its SHA-256): reproducible, includes `SHA256SUMS`, refuses to ship the author's paths, addresses or name.
+- README: download-and-verify section, guided setup, license.
+
 ## 2026-11-11 (night)
 - Layout control at the bottom of the page: Touch (default, unchanged), Future, 90s and Simple. The choice is kept on the phone only.
 - Future layout: neon look and a volume bar with a live number. Relative drag (3 px per step), level read from the TV and set directly, newest value at most every 60 ms.
