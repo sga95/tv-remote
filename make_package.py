@@ -7,7 +7,7 @@ import hashlib, os, sys, zipfile
 
 D = os.path.dirname(os.path.abspath(__file__))  # the folder this script is in
 # The only files that go into the download. Anything else in the folder (secrets, certificate, settings) cannot get in.
-FILES = ["LICENSE", "README.md", "CHANGELOG.md", "remote_fast.py", "setup.py", "test_remote_fast.py"]
+FILES = ["LICENSE", "SECURITY.md", "README.md", "CHANGELOG.md", "docs/layouts.jpg", "remote_fast.py", "setup.py", "test_remote_fast.py"]
 if len(sys.argv) != 2:
     sys.exit("usage: python make_package.py <version>")
 version = sys.argv[1]
@@ -18,10 +18,13 @@ if os.path.exists(os.path.join(D, "forbidden.txt")):
     FORBIDDEN += [l.strip().encode() for l in open(os.path.join(D, "forbidden.txt")) if l.strip()]
 blobs = {}  # file name -> its bytes, exactly as they will be zipped
 for f in FILES:
-    data = open(os.path.join(D, f), "rb").read().replace(b"\r\n", b"\n")  # same bytes on every machine
-    for bad in FORBIDDEN:
-        if bad in data:
-            sys.exit(f"STOP: {f} contains {bad!r}, remove it before publishing")
+    data = open(os.path.join(D, f), "rb").read()
+    text = not f.endswith(".jpg")  # the picture is binary: no line-ending change, no text scan
+    if text:
+        data = data.replace(b"\r\n", b"\n")  # same bytes on every machine
+        for bad in FORBIDDEN:
+            if bad in data:
+                sys.exit(f"STOP: {f} contains {bad!r}, remove it before publishing")
     blobs[f] = data
 # SHA256SUMS lists the hash of every file inside; setup.py checks it before configuring anything.
 sums = "".join(f"{hashlib.sha256(b).hexdigest()} *{n}\n" for n, b in sorted(blobs.items())).encode()
