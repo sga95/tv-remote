@@ -260,7 +260,9 @@ h2{margin:6px 2px 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase
 .used .ghost{display:none}
 @keyframes hint{0%{opacity:0;transform:translate(-70px,0)}8%{opacity:.9}30%{opacity:.9;transform:translate(70px,0)}38%,39%{opacity:0;transform:translate(0,-60px)}46%{opacity:.9}68%{opacity:.9;transform:translate(0,60px)}76%,100%{opacity:0;transform:translate(0,60px)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.ghost{animation:none}}
-#lay{grid-template-columns:repeat(3,1fr)}
+.sm .apps,.sm .pad,.sm .snd,.sm .nav button:last-child,.sm .dock .pill:last-child,.sm .mid button:not(.pw){display:none}
+.sm .nav,.sm .dock{grid-template-columns:repeat(2,1fr)}.sm button{min-height:64px}
+.sm .dp{display:grid;grid-template:repeat(3,92px)/repeat(3,92px)}.sm .dp svg{width:34px;height:34px}.sm .go{font-size:20px;font-weight:700}
 #vol,.dp,.num{display:none}
 #vol{position:relative;flex:1;min-height:100px;border-radius:22px;background:#04090f;border:1px solid var(--bd);overflow:hidden;touch-action:none}
 #vol i{position:absolute;left:0;right:0;bottom:0;height:var(--v,0%);background:linear-gradient(0deg,#0b4a6b,var(--ac));box-shadow:0 0 18px var(--ac)}
@@ -326,7 +328,7 @@ def page(tok, admin=False):
     num = "".join(f'<button onpointerdown="k(\'{n}\')">{n}</button>' for n in "1234567890")
     dp = "".join(f'<button class=g{c} onpointerdown="k(\'{n}\')" aria-label="{n}">{"OK" if n == "OK" else CHEV}</button>'
                  for c, n in zip("ulord", ("Up", "Left", "OK", "Right", "Down")))
-    lay = "".join(f'<button data-l="{c}" onpointerdown="lay(\'{c}\')">{n}</button>' for c, n in (("", "Touch"), ("fx", "Future"), ("r90", "90s")))
+    lay = "".join(f'<button data-l="{c}" onpointerdown="lay(\'{c}\')">{n}</button>' for c, n in (("", "Touch"), ("fx", "Future"), ("r90", "90s"), ("sm", "Simple")))
     body = (f'<main><section class=apps>{apps}</section><section class=num>{num}</section>'
             f'<section class=pad id=pad role=application aria-label="Touchpad: swipe to move, tap to select">{edges}<i class=ring></i><i class=ghost></i></section>'
             f'<section class=dp>{dp}</section>'
@@ -334,7 +336,7 @@ def page(tok, admin=False):
             f'<section class=dock><div class=pill>{b("Vol+", "v")}<div id=vol role=slider aria-label="Volume: drag up or down"><i></i><b>--</b></div>{b("Mute")}{b("Vol-", "v")}</div>'
             f'<div class=mid>{b("Power", "pw")}{b("Play/Pause")}{b("Input")}</div>'
             f'<div class=pill>{b("Ch+")}<em>CH</em>{b("Ch-")}</div></section>'
-            f'<h2>Sound</h2><section class=seg>{snd}</section>'
+            f'<h2 class=snd>Sound</h2><section class="seg snd">{snd}</section>'
             f'<h2>Layout</h2><section class=seg id=lay>{lay}</section>' + ("<pre id=st></pre>" if admin else "") + "</main>")
     js = JS.replace("@TOK@", tok) + (";" + STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'

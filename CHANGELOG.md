@@ -1,9 +1,10 @@
 # Changelog
 
 ## 2026-11-11 (night)
-- Layout control at the bottom of the page: Touch (default, unchanged), Future and 90s. The choice is kept on the phone only.
+- Layout control at the bottom of the page: Touch (default, unchanged), Future, 90s and Simple. The choice is kept on the phone only.
 - Future layout: neon look and a volume bar with a live number. Relative drag (3 px per step), level read from the TV and set directly, newest value at most every 60 ms.
 - 90s layout: number pad (keys 0 to 9 added to the allowlist), D-pad cross with OK, rubber-style keys.
+- Simple layout: large D-pad with OK, Back, Home, volume, mute and power, nothing else.
 - New endpoints, both behind the same secret and pairing checks: `GET vol` (level and range) and `POST vol/<0-100>` (digits only).
 - Tests: 21 checks (number pad, volume range, digits only, paired device only).
 
