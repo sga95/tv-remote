@@ -161,6 +161,10 @@ PORTS = {5555: "network debugging (adb, what this remote uses)", 8008: "Cast", 8
 # Measured on the tested TV: the first step freed almost nothing (the remote already closes other apps when one is
 # opened), the second freed 146 MB of storage. Caches are rewritten afterwards, so this is not something to press daily.
 TUNE = {"run": "am kill-all; pm trim-caches 999G"}
+# Clean restart: the same clean-up, then the TV restarts. Measured on the tested TV: it was back and answering after
+# 68 seconds, network debugging came back by itself, and every privacy and security setting was as it had been left.
+# The page takes a picture of those settings before and compares after; see "Clean restart" in the page script.
+TUNE["restart"] = TUNE["run"] + "; reboot"
 # The read-only question for the Optimize panel: memory, storage of the data partition, seconds since the TV started,
 # the Android version and the date of the last security patch the TV received. Last, the three parts of Android that
 # the app store keeps updating even when the TV maker has stopped: the WebView (the web engine inside apps),
@@ -238,6 +242,16 @@ def adb(*args, timeout=4):
     return subprocess.run([ADB, *args], capture_output=True, text=True, timeout=timeout, creationflags=NOWIN).stdout
 
 
+def ask(question, timeout=4):
+    """One read-only question to the TV, answered as text.
+    No answer at all means the link to the TV is gone (it restarted, or the Wi-Fi dropped): connect again and ask once more."""
+    answer = adb("-s", TV, "shell", question, timeout=timeout)
+    if not answer.strip():
+        adb("connect", TV, timeout=8)
+        answer = adb("-s", TV, "shell", question, timeout=timeout)
+    return answer
+
+
 def tv(cmd):
     """Send one command line to the TV. `cmd` always comes from the tables of section 2.
     Speed: starting adb for every tap takes too long, so one `adb shell` stays open and each tap is
@@ -267,7 +281,7 @@ def vol_get():
     """The TV's volume now and its top value, as {"v": 28, "max": 100}; {} if it cannot be read.
     The long-lived shell throws its output away, so this one question uses a separate adb call."""
     try:
-        found = re.search(r"volume is (\d+) in range \[\d+\.\.(\d+)\]", adb("-s", TV, "shell", VOL + "--get"))
+        found = re.search(r"volume is (\d+) in range \[\d+\.\.(\d+)\]", ask(VOL + "--get"))
         return {"v": int(found[1]), "max": int(found[2])}
     except (subprocess.TimeoutExpired, OSError, TypeError):  # TypeError: the line was not in the answer
         return {}
@@ -278,7 +292,7 @@ def privacy():
     Example: {"mic_blocked": False, "cam_blocked": False, "cameras": 0, "mics": ["Built-In Mic"],
               "mic_apps": ["Netflix", "com.example.app"], "cam_apps": []}"""
     try:
-        state, cameras, inputs, holders = re.split(r"@cam|@in|@apps", adb("-s", TV, "shell", PRIV_ASK, timeout=12))
+        state, cameras, inputs, holders = re.split(r"@cam|@in|@apps", ask(PRIV_ASK, timeout=12))
     except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its four parts
         return {}
     # In the system's report sensor 1 is the microphone and 2 the camera; state 1 means the block is on.
@@ -307,7 +321,7 @@ def security():
     "ports" is [[8008, "Cast", "com.google.android.apps.mediashell"], ...]: port, what it is known as, who holds it open."""
     try:
         (access, listeners, location, hotword, installers, usage, ads, cast, ports,
-         apps, programs) = adb("-s", TV, "shell", SEC_ASK, timeout=12).split("#next#")
+         apps, programs) = ask(SEC_ASK, timeout=12).split("#next#")
         installed, disabled = (int(n) for n in cast.split())
     except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its eleven parts
         return {}
@@ -338,7 +352,7 @@ def security():
 
 def health():
     """What the Optimize panel shows, in MB and hours, read from the TV each time; {} if the TV does not answer.
-    Example: {"ram_free": 738, "ram_total": 1686, "disk_free": 5706, "disk_total": 7471, "hours": 4,
+    Example: {"ram_free": 738, "ram_total": 1686, "disk_free": 5706, "disk_total": 7471, "seconds": 14563, "hours": 4,
               "android": "14", "patch": "2025-07-05", "webview": "157.0.8103.40", "play_services": "2026-11-09",
               "play_system": "2024-05-01"}   (a text is "" when the TV does not state it)"""
     def find(pattern, text):  # the first group of the pattern, or "" if it is not there
@@ -346,12 +360,13 @@ def health():
         return found[1] if found else ""
 
     try:
-        mem, disk, up, system, layers = re.split(r"@disk|@up|@os|@layers", adb("-s", TV, "shell", TUNE_ASK, timeout=10))
+        mem, disk, up, system, layers = re.split(r"@disk|@up|@os|@layers", ask(TUNE_ASK, timeout=10))
         kb = {name: int(value) for name, value in re.findall(r"(MemTotal|MemAvailable):\s+(\d+)", mem)}
         size, used, free = (int(n) for n in disk.split()[1:4])  # df prints: device, size, used, free (in kB), percent, mount point
         # Only real version numbers and dates are passed on to the page, never free text from the TV.
         return {"ram_free": kb["MemAvailable"] // 1024, "ram_total": kb["MemTotal"] // 1024,
-                "disk_free": free // 1024, "disk_total": size // 1024, "hours": int(float(up.split()[0]) // 3600),
+                "disk_free": free // 1024, "disk_total": size // 1024,
+                "seconds": int(float(up.split()[0])), "hours": int(float(up.split()[0]) // 3600),
                 "android": find(r"([\d.]+)", system), "patch": find(r"(\d{4}-\d{2}-\d{2})", system),
                 "webview": find(r"WebView package[^\n]*?, ([\d.]+)\)", layers),
                 "play_services": find(r"lastUpdateTime=(\d{4}-\d{2}-\d{2})", layers),
@@ -822,16 +837,75 @@ const showHealth = j => {
   document.getElementById('tunebtn').textContent = 'Optimize now';
   if (!('ram_free' in j)) { text.textContent = 'The TV did not answer.'; return; }
   const was = before || {};
-  text.textContent = 'Memory free: ' + j.ram_free + ' of ' + j.ram_total + ' MB' + gained(j.ram_free, was.ram_free)
+  text.textContent = note + 'Memory free: ' + j.ram_free + ' of ' + j.ram_total + ' MB' + gained(j.ram_free, was.ram_free)
     + '\\nStorage free: ' + j.disk_free + ' of ' + j.disk_total + ' MB' + gained(j.disk_free, was.disk_free)
     + '\\nOn for: ' + (j.hours < 48 ? j.hours + ' h' : Math.floor(j.hours / 24) + ' days')
-    + (j.hours >= 168 ? '\\nOn for over a week: a restart from the TV menu clears more than this button can.' : '')
+    + (j.hours >= 168 ? '\\nOn for over a week: a clean restart clears more than Optimize can.' : '')
     + patchLine(j);
   before = null;
   last = j;
 };
 let last = null;     // the numbers now on screen
+let note = '';       // the report of the last clean restart, kept above the numbers until the page is closed
 const readHealth = () => fetch('/'+T+'/health').then(r => r.json()).then(showHealth).catch(() => {});
+
+// Clean restart. 1) Take a picture of what matters: the privacy blocks, who holds the permissions, the security
+// settings, the open ports and who holds them. 2) Clean up and restart the TV. 3) Wait until it answers again with a
+// fresh "on for" time. 4) Take the picture again and list every change that makes the TV more exposed than before.
+// The picture lives in this page only, for these few minutes: nothing is saved, on the phone or on the server.
+const sleep = ms => new Promise(done => setTimeout(done, ms));
+const picture = () => Promise.all(['privacy', 'security', 'health'].map(part => fetch('/'+T+'/'+part).then(r => r.json())))
+  .then(([p, s, h]) => ({p, s, h, ok: 'mic_blocked' in p && 'ports' in s && 'ram_free' in h}));
+const added = (was, now) => now.filter(x => !was.includes(x));
+const worse = (was, now) => {
+  const found = [];
+  if (was.p.mic_blocked && !now.p.mic_blocked) found.push('the microphone block is off');
+  if (was.p.cam_blocked && !now.p.cam_blocked) found.push('the camera block is off');
+  added(was.p.mic_apps, now.p.mic_apps).forEach(app => found.push(app + ' holds the microphone permission again'));
+  added(was.p.cam_apps, now.p.cam_apps).forEach(app => found.push(app + ' holds the camera permission again'));
+  if (was.s.cast == 'off' && now.s.cast == 'on') found.push('Cast is on again');
+  if (was.s.ads_limited && !now.s.ads_limited) found.push('the ad personalisation limit is gone');
+  if (!was.s.location_on && now.s.location_on) found.push('location is on');
+  if (!was.s.hotword_on && now.s.hotword_on) found.push('the voice hotword is listening');
+  added(was.s.accessibility, now.s.accessibility).forEach(app => found.push(app + ' is a new accessibility service'));
+  added(was.s.listeners, now.s.listeners).forEach(app => found.push(app + ' now reads notifications'));
+  added(was.s.installers, now.s.installers).forEach(app => found.push(app + ' may now install apps'));
+  added(was.s.usage, now.s.usage).forEach(app => found.push(app + ' now sees what you use'));
+  // A port counts as new only if its owner did not hold a port before: apps pick a different port number at each start.
+  const owners = was.s.ports.map(port => port[2]);
+  now.s.ports.filter(port => !owners.includes(port[2])).forEach(port => found.push('port ' + port[0] + ' is open, held by ' + port[2]));
+  return found;
+};
+const restart = async el => {
+  if (el.disabled || !confirm('Restart the TV now? It takes about a minute and stops whatever is playing.')) return;
+  const text = document.getElementById('opt');
+  el.disabled = true;
+  try {
+    const was = await picture().catch(() => ({}));
+    if (!was.ok) { text.textContent = 'The TV did not answer, so nothing was done.'; return; }
+    press('tune/restart');
+    const started = Date.now();
+    text.textContent = 'Cleaning up and restarting the TV. Keep this page open...';
+    let back = false;
+    while (!back && Date.now() - started < 300000) {   // give it 5 minutes
+      await sleep(5000);
+      const h = await fetch('/'+T+'/health').then(r => r.json()).catch(() => ({}));
+      back = 'seconds' in h && h.seconds < was.h.seconds;   // answering again, and its clock started over
+    }
+    if (!back) { text.textContent = 'The TV has not come back after 5 minutes. If it is on, turn network debugging on again in its menu.'; return; }
+    const took = Math.round((Date.now() - started) / 1000);
+    text.textContent = 'The TV is back after ' + took + ' s. Checking it...';
+    await sleep(25000);   // let its services start before looking
+    const now = await picture().catch(() => ({}));
+    if (!now.ok) { text.textContent = 'The TV restarted but did not answer the check. Open the panels above to read its state.'; return; }
+    const found = worse(was, now);
+    note = 'Clean restart done in ' + took + ' s. Memory free before: ' + was.h.ram_free + ' MB.\\n'
+      + (found.length ? 'CHECK, more exposed than before the restart:\\n' + found.map(f => '  - ' + f).join('\\n')
+          + '\\nIf you do not expect this, press Power to turn the TV off.\\n'
+        : 'Nothing is more exposed than before: blocks, permissions, Cast, settings and port owners are as you left them.\\n');
+    showPrivacy(now.p); showSecurity(now.s); showHealth(now.h);
+  } finally { el.disabled = false; }
+};
 const tune = el => { if (!last) return; before = last; press('tune/run'); el.textContent = 'Optimizing...'; setTimeout(readHealth, 5000); };
 new IntersectionObserver(seen => { seen[0].isIntersecting && readHealth(); }).observe(document.getElementById('opt'));
 
@@ -915,6 +989,7 @@ def page(tok, admin=False):
         '<button id=adl onpointerdown="secure(\'ads\')">Ad personalisation</button></section>'
         '<h2>Optimize TV</h2><p id=opt>Asking the TV...</p>'
         '<button id=tunebtn onclick="tune(this)">Optimize now</button>'
+        '<button id=rst onclick="restart(this)">Clean restart</button>'
         + ("<pre id=st></pre>" if admin else "") + '</footer>')
     script = JS.replace("@TOK@", tok).replace("@LIMITS@", json.dumps(VOL_LIMITS)) + (STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-12 (clean restart)
+- New "Clean restart" button in the Optimize panel: confirmation, picture of the privacy and security state, clean-up, restart, wait until the TV answers again, second picture, list of everything that is more exposed than before. Nothing is stored; the remote never turns the TV off by itself.
+- Measured on the tested TV: back after 68 seconds with network debugging on, all settings kept, free memory from 476 to 703 MB.
+- Read-only questions to the TV now reconnect once when the TV does not answer (after a restart or a Wi-Fi drop).
+- New command behind the same checks: `POST tune/restart`. Tests added.
+
 ## 2026-11-12 (who holds the ports, what still updates)
 - Security panel: every listening port now names who holds it open (the app, the system program, or the system), found from the socket's user id. An unknown port is no longer anonymous.
 - Optimize panel: three read-only lines on the parts of Android the store still updates (WebView version, Google Play services date, Google Play system update date, with their age).

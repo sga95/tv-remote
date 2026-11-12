@@ -84,9 +84,13 @@ ns["adb"] = lambda *a, **k: "garbage"
 assert ns["privacy"]() == {}, "an unreadable answer shows as no answer, never as a guessed state"
 assert get("/" + TOKEN + "/privacy", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/privacy")[0] == 404, "privacy report needs a paired device"
 assert post("/" + TOKEN + "/tune/run", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "am kill-all; pm trim-caches 999G", "optimize is one fixed command"
+assert post("/" + TOKEN + "/tune/restart", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "am kill-all; pm trim-caches 999G; reboot", "clean restart is one fixed command"
 assert post("/" + TOKEN + "/tune/wipe", cookie="dev=" + cookie)[0] == 404
+calls = []
+ns["adb"] = lambda *a, **k: calls.append(a) or ("" if len(calls) < 3 else "answer")
+assert ns["ask"]("question") == "answer" and calls[1][0] == "connect", "a TV that does not answer is connected again and asked once more"
 ns["adb"] = lambda *a, **k: "MemTotal:        1727336 kB\nMemAvailable:     755988 kB\n@disk\n/dev/block/x   7651016 1809612   5693948  25% /data\n@up\n14563.73 46033.10\n@os\n14\n2025-07-05\n@layers\n  Current WebView package (name, version): (com.google.android.webview, 157.0.8103.40)\n    lastUpdateTime=2026-11-09 18:26:13\n    versionName=2024-05-01 S+\n"
-assert ns["health"]() == {"ram_free": 738, "ram_total": 1686, "disk_free": 5560, "disk_total": 7471, "hours": 4,
+assert ns["health"]() == {"ram_free": 738, "ram_total": 1686, "disk_free": 5560, "disk_total": 7471, "seconds": 14563, "hours": 4,
                           "android": "14", "patch": "2025-07-05", "webview": "157.0.8103.40", "play_services": "2026-11-09",
                           "play_system": "2024-05-01"}, "optimize panel numbers are parsed from the TV's answer"
 ns["adb"] = lambda *a, **k: "garbage"
