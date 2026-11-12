@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-12 (apps left open)
+- Optimize (and so Clean restart) now also closes the streaming apps of the app list that are not on screen. Found on the tested TV: after a restart the TV started one streaming app by itself, and opening another app from the TV's own menu left it running in the background (about 160 MB). The app on screen is read from the TV and skipped; checked on the TV that it keeps its process.
+
 ## 2026-11-12 (clean restart)
 - New "Clean restart" button in the Optimize panel: confirmation, picture of the privacy and security state, clean-up, restart, wait until the TV answers again, second picture, list of everything that is more exposed than before. Nothing is stored; the remote never turns the TV off by itself.
 - Measured on the tested TV: back after 68 seconds with network debugging on, all settings kept, free memory from 476 to 703 MB.

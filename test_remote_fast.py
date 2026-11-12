@@ -83,8 +83,9 @@ assert ns["privacy"]() == {"mic_blocked": True, "cam_blocked": False, "cameras":
 ns["adb"] = lambda *a, **k: "garbage"
 assert ns["privacy"]() == {}, "an unreadable answer shows as no answer, never as a guessed state"
 assert get("/" + TOKEN + "/privacy", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/privacy")[0] == 404, "privacy report needs a paired device"
-assert post("/" + TOKEN + "/tune/run", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "am kill-all; pm trim-caches 999G", "optimize is one fixed command"
-assert post("/" + TOKEN + "/tune/restart", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "am kill-all; pm trim-caches 999G; reboot", "clean restart is one fixed command"
+assert post("/" + TOKEN + "/tune/run", cookie="dev=" + cookie)[0] == 200 and sent[-1] == ns["TUNE"]["run"] and sent[-1].endswith("; am kill-all; pm trim-caches 999G"), "optimize is one fixed command"
+assert 'case "$fg" in *"$p/"*) ;;' in sent[-1] and "io.freemytv" not in sent[-1], "optimize skips the app on screen and never names the launcher"
+assert post("/" + TOKEN + "/tune/restart", cookie="dev=" + cookie)[0] == 200 and sent[-1] == ns["TUNE"]["run"] + "; reboot", "clean restart is one fixed command"
 assert post("/" + TOKEN + "/tune/wipe", cookie="dev=" + cookie)[0] == 404
 calls = []
 ns["adb"] = lambda *a, **k: calls.append(a) or ("" if len(calls) < 3 else "answer")

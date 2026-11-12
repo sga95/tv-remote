@@ -155,12 +155,18 @@ SEC_ASK = "; echo '#next#'; ".join((
 PORTS = {5555: "network debugging (adb, what this remote uses)", 8008: "Cast", 8009: "Cast", 8443: "Cast",
          6465: "Android TV remote service", 6466: "Android TV remote service", 6467: "Android TV remote service"}
 
-# Optimize. One fixed command with the two steps that are safe on any Android TV and need no list of apps:
+# Optimize. One fixed command. Two of its steps are safe on any Android TV and need no list of apps:
 #   am kill-all            ends background processes that Android itself marks as safe to end (never the app on screen)
 #   pm trim-caches 999G    asks every app to drop its cache files (thumbnails, temporary downloads); apps rebuild them as needed
 # Measured on the tested TV: the first step freed almost nothing (the remote already closes other apps when one is
 # opened), the second freed 146 MB of storage. Caches are rewritten afterwards, so this is not something to press daily.
-TUNE = {"run": "am kill-all; pm trim-caches 999G"}
+# A third step comes first: close the streaming apps of the APPS list that are NOT on screen. Some TVs start an app
+# by themselves after a restart, or an app is opened from the TV's own menu, where this remote cannot close the others.
+# The check runs on the TV: it reads which app is on screen and skips it, so what is being watched is never closed.
+_CLOSE_OTHERS = ("fg=$(dumpsys activity activities | grep -m1 topResumedActivity); for p in "
+                 + " ".join(pkg for pkg, _ in APPS.values() if pkg != LAUNCHER)
+                 + '; do case "$fg" in *"$p/"*) ;; *) am force-stop $p;; esac; done')
+TUNE = {"run": _CLOSE_OTHERS + "; am kill-all; pm trim-caches 999G"}
 # Clean restart: the same clean-up, then the TV restarts. Measured on the tested TV: it was back and answering after
 # 68 seconds, network debugging came back by itself, and every privacy and security setting was as it had been left.
 # The page takes a picture of those settings before and compares after; see "Clean restart" in the page script.
