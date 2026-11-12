@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-12 (who holds the ports, what still updates)
+- Security panel: every listening port now names who holds it open (the app, the system program, or the system), found from the socket's user id. An unknown port is no longer anonymous.
+- Optimize panel: three read-only lines on the parts of Android the store still updates (WebView version, Google Play services date, Google Play system update date, with their age).
+
 ## 2026-11-12 (security panel)
 - New Security panel in the settings: a read-only check (accessibility services, notification readers, installers, usage access, location, voice hotword) and the list of network ports the TV listens on, with names for the well-known ones.
 - Cast switch: `pm disable-user` and `pm enable` plus a service start for Google's Cast receiver. Measured on the tested TV: off closes the Cast ports, on restores them; without the service start they only came back after a restart.

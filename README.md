@@ -94,7 +94,7 @@ Every layout also has, unless it hides them on purpose:
 <br>
 
 - **The check**, read from the TV when the panel scrolls into view and never stored, one line each, marked `ok` or `CHECK`: accessibility services (they can read the screen), apps that read notifications, apps allowed to install apps, apps that see what you use, location, voice hotword. `CHECK` means "worth a look", not "wrong": a launcher that shows what is playing reads notifications on purpose.
-- **Open doors on the home network**: the ports the TV listens on, with a name for the well-known ones (Cast, the Android TV remote service, network debugging, which is what this remote uses) and `unknown` for the rest. Read-only.
+- **Open doors on the home network**: the ports the TV listens on, with a name for the well-known ones (Cast, the Android TV remote service, network debugging, which is what this remote uses) and `unknown` for the rest, each followed by who holds it open: the app, the system program, or "the system". So an unknown port is never anonymous: you see which app to close or remove. Read-only.
 - **Cast switch**: turns Google's Cast receiver off (`pm disable-user`) and on again (`pm enable`, then its service is started). Off means no device on the Wi-Fi can send video to the TV, and you cannot cast either. Nothing is uninstalled. Measured on the tested TV: off closes the three Cast ports at once; on brings them back within seconds.
 - **Ad personalisation switch**: sets or removes Android's "limit ad tracking" request. It is a request to well-behaved apps, not a block, and whether an app honours it cannot be verified from here. The TV stores it and reports it back.
 - **Not covered**: data collection by the TV maker and Google's "usage and diagnostics" are not readable over adb; check them in the TV's own privacy menu. The age of the security patch is in the Optimize panel.
@@ -112,6 +112,7 @@ Every layout also has, unless it hides them on purpose:
 - **After a week without a restart** the panel says so: a restart from the TV menu clears more than this button can. The remote does not restart the TV itself.
 - **What it cannot do, plainly**: nothing here changes what wears a TV out. Panel hours, brightness and heat are outside adb's reach on the tested TV (it reports no temperature), and no app is disabled, removed or re-enabled by this button.
 - **Security patch age**: counted with the phone's own clock, nothing is looked up online. Android publishes security fixes every month, so each month of age is one round of fixes the TV does not have. Past six months the panel shows a warning and points to the section below. It is an age, not a vulnerability scan: the remote ships no list of CVEs.
+- **Still updated through the store**: three parts of Android keep getting fixes from the app store even after the TV maker has stopped: the WebView (the web engine inside apps), Google Play services and the "Google Play system update". The panel shows the WebView version and the dates of the other two with their age. They do not replace system patches, but while they are fresh a good share of the usual ways in stays patched. A date that is far behind means that layer has stopped too.
 
 </details>
 

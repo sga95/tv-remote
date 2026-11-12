@@ -140,16 +140,17 @@ SEC = {
     # Ask apps not to personalise advertising. A request to well-behaved apps, not a block: it cannot be verified from here.
     "ads/limit": "settings put secure limit_ad_tracking 1", "ads/free": "settings delete secure limit_ad_tracking",
 }
-# The read-only question, in nine parts separated by "@": accessibility services, apps that read notifications,
+# The read-only question, in eleven parts separated by "#next#": accessibility services, apps that read notifications,
 # location, voice hotword, apps allowed to install apps, apps allowed to read usage, the advertising request,
-# the Cast receiver (installed? disabled?) and the network ports the TV listens on.
-SEC_ASK = "; echo @; ".join((
+# the Cast receiver (installed? disabled?), the network ports the TV listens on with the user id that owns each,
+# and two lists that turn a user id into a name: the installed apps and the running programs.
+SEC_ASK = "; echo '#next#'; ".join((
     "settings get secure enabled_accessibility_services", "settings get secure enabled_notification_listeners",
     "settings get secure location_mode", "settings get global hotword_detection_enabled",
     "cmd appops query-op REQUEST_INSTALL_PACKAGES allow", "cmd appops query-op GET_USAGE_STATS allow",
     "settings get secure limit_ad_tracking",
     "pm list packages | grep -c " + CAST + "; pm list packages -d | grep -c " + CAST,
-    "ss -ltn | grep LISTEN"))
+    "ss -ltne | grep LISTEN", "pm list packages -U", "ps -A -o UID,NAME"))
 # Well-known ports of an Android TV, to give the open doors a name. Any other port is shown as "unknown".
 PORTS = {5555: "network debugging (adb, what this remote uses)", 8008: "Cast", 8009: "Cast", 8443: "Cast",
          6465: "Android TV remote service", 6466: "Android TV remote service", 6467: "Android TV remote service"}
@@ -161,9 +162,14 @@ PORTS = {5555: "network debugging (adb, what this remote uses)", 8008: "Cast", 8
 # opened), the second freed 146 MB of storage. Caches are rewritten afterwards, so this is not something to press daily.
 TUNE = {"run": "am kill-all; pm trim-caches 999G"}
 # The read-only question for the Optimize panel: memory, storage of the data partition, seconds since the TV started,
-# the Android version and the date of the last security patch the TV received.
+# the Android version and the date of the last security patch the TV received. Last, the three parts of Android that
+# the app store keeps updating even when the TV maker has stopped: the WebView (the web engine inside apps),
+# Google Play services and the "Google Play system update" (system modules Google updates itself).
 TUNE_ASK = ("grep -E 'MemTotal|MemAvailable' /proc/meminfo; echo @disk; df /data | tail -1; echo @up; cat /proc/uptime; "
-            "echo @os; getprop ro.build.version.release; getprop ro.build.version.security_patch")
+            "echo @os; getprop ro.build.version.release; getprop ro.build.version.security_patch; "
+            "echo @layers; dumpsys webviewupdate | grep 'Current WebView package'; "
+            "dumpsys package com.google.android.gms | grep -m1 lastUpdateTime; "
+            "dumpsys package com.google.android.modulemetadata | grep -m1 versionName")
 
 # ============================================================ 3. Secrets and pairing
 # Two secrets, each one the first part of an address:
@@ -297,11 +303,13 @@ def privacy():
 
 def security():
     """What the Security panel shows, read from the TV each time; {} if the TV does not answer.
-    Lists hold package names. "cast" is "on", "off" or "none" (no Cast receiver on this TV). "ports" is [[8008, "Cast"], ...]."""
+    Lists hold package names. "cast" is "on", "off" or "none" (no Cast receiver on this TV).
+    "ports" is [[8008, "Cast", "com.google.android.apps.mediashell"], ...]: port, what it is known as, who holds it open."""
     try:
-        access, listeners, location, hotword, installers, usage, ads, cast, ports = adb("-s", TV, "shell", SEC_ASK, timeout=10).split("@")
+        (access, listeners, location, hotword, installers, usage, ads, cast, ports,
+         apps, programs) = adb("-s", TV, "shell", SEC_ASK, timeout=12).split("#next#")
         installed, disabled = (int(n) for n in cast.split())
-    except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its nine parts
+    except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its eleven parts
         return {}
 
     def services(text):  # "pkg/class:pkg2/class" or "null" -> ["pkg", "pkg2"]
@@ -310,28 +318,44 @@ def security():
     def packages(text):  # one package per line; other lines ("No operations.") have a space in them
         return [line.strip() for line in text.splitlines() if "." in line and " " not in line.strip()]
 
+    # Who owns a user id: an installed app if there is one (shown by its button name when it has one),
+    # otherwise the running program with that id (system services are programs, not apps).
+    label = {pkg: name for name, (pkg, _) in APPS.items()}
+    owner = {uid: name for uid, name in re.findall(r"^\s*(\d+)\s+(\S+)\s*$", programs, re.M)}
+    owner.update({uid: label.get(pkg, pkg) for pkg, uid in re.findall(r"package:(\S+) uid:(\d+)", apps)})
     # Listening sockets, without the ones only the TV itself can reach (loopback addresses).
-    doors = {int(port) for address, port in re.findall(r"LISTEN\s+\d+\s+\d+\s+(\S+):(\d+)\s", ports)
-             if not address.startswith("127.") and "::1" not in address}
+    # A line without "uid:" belongs to the system itself (user id 0).
+    doors = {}
+    for address, port, uid in re.findall(r"LISTEN\s+\d+\s+\d+\s+(\S+):(\d+)\s+\S+(?:[^\n]*?uid:(\d+))?", ports):
+        if not address.startswith("127.") and "::1" not in address:
+            doors[int(port)] = owner.get(uid, "unknown program") if uid else "the system"
     return {"accessibility": services(access), "listeners": services(listeners),
             "location_on": location.strip() not in ("0", "null"), "hotword_on": hotword.strip() == "1",
             "installers": packages(installers), "usage": packages(usage), "ads_limited": ads.strip() == "1",
             "cast": "none" if not installed else "off" if disabled else "on",
-            "ports": [[port, PORTS.get(port, "unknown")] for port in sorted(doors)]}
+            "ports": [[port, PORTS.get(port, "unknown"), doors[port]] for port in sorted(doors)]}
 
 
 def health():
     """What the Optimize panel shows, in MB and hours, read from the TV each time; {} if the TV does not answer.
     Example: {"ram_free": 738, "ram_total": 1686, "disk_free": 5706, "disk_total": 7471, "hours": 4,
-              "android": "14", "patch": "2025-07-05"}   ("patch" is "" if the TV does not state a date)"""
+              "android": "14", "patch": "2025-07-05", "webview": "157.0.8103.40", "play_services": "2026-11-09",
+              "play_system": "2024-05-01"}   (a text is "" when the TV does not state it)"""
+    def find(pattern, text):  # the first group of the pattern, or "" if it is not there
+        found = re.search(pattern, text)
+        return found[1] if found else ""
+
     try:
-        mem, disk, up, system = re.split(r"@disk|@up|@os", adb("-s", TV, "shell", TUNE_ASK))
+        mem, disk, up, system, layers = re.split(r"@disk|@up|@os|@layers", adb("-s", TV, "shell", TUNE_ASK, timeout=10))
         kb = {name: int(value) for name, value in re.findall(r"(MemTotal|MemAvailable):\s+(\d+)", mem)}
         size, used, free = (int(n) for n in disk.split()[1:4])  # df prints: device, size, used, free (in kB), percent, mount point
-        patch = re.search(r"\d{4}-\d{2}-\d{2}", system)         # only a real date is passed on to the page
+        # Only real version numbers and dates are passed on to the page, never free text from the TV.
         return {"ram_free": kb["MemAvailable"] // 1024, "ram_total": kb["MemTotal"] // 1024,
                 "disk_free": free // 1024, "disk_total": size // 1024, "hours": int(float(up.split()[0]) // 3600),
-                "android": (re.search(r"[\d.]+", system) or [""])[0], "patch": patch[0] if patch else ""}
+                "android": find(r"([\d.]+)", system), "patch": find(r"(\d{4}-\d{2}-\d{2})", system),
+                "webview": find(r"WebView package[^\n]*?, ([\d.]+)\)", layers),
+                "play_services": find(r"lastUpdateTime=(\d{4}-\d{2}-\d{2})", layers),
+                "play_system": find(r"versionName=(\d{4}-\d{2}-\d{2})", layers)}
     except (subprocess.TimeoutExpired, OSError, ValueError, KeyError, IndexError):  # no answer, or not the answer expected
         return {}
 
@@ -754,7 +778,7 @@ const showSecurity = j => {
     + '\\n' + (j.location_on ? 'CHECK Location: on' : 'ok    Location: off')
     + '\\n' + (j.hotword_on ? 'CHECK Voice hotword: listening' : 'ok    Voice hotword: off')
     + '\\nOpen doors on the home network:'
-    + (j.ports.length ? j.ports.map(p => '\\n  ' + p[0] + '  ' + p[1]).join('') : ' none');
+    + (j.ports.length ? j.ports.map(p => '\\n  ' + p[0] + '  ' + p[1] + ', held open by ' + p[2]).join('') : ' none');
   const cast = document.getElementById('cast'), ads = document.getElementById('adl');
   cast.disabled = j.cast == 'none';
   cast.textContent = 'Cast: ' + (j.cast == 'none' ? 'not found' : j.cast == 'on' ? 'on' : 'OFF');
@@ -778,13 +802,20 @@ let before = null;   // the numbers from just before the last clean-up (null = n
 const gained = (now, was) => was == null || now == was ? '' : ' (' + (now > was ? '+' : '') + (now - was) + ' MB)';
 // How old the TV's last security patch is, counted with this phone's own clock: nothing is looked up anywhere.
 // Android publishes security fixes every month, so each month of age is one round of fixes this TV does not have.
+const monthsSince = date => { const then = new Date(date), now = new Date(); return (now.getFullYear() - then.getFullYear()) * 12 + now.getMonth() - then.getMonth(); };
+const aged = date => date ? date + ' (' + monthsSince(date) + ' months old)' : 'the TV does not say';
 const patchLine = j => {
-  if (!j.patch) return '\\nSecurity patch: the TV does not say';
-  const then = new Date(j.patch), now = new Date();
-  const months = (now.getFullYear() - then.getFullYear()) * 12 + now.getMonth() - then.getMonth();
+  // The parts the app store keeps updating after the TV maker has stopped. They do not replace system patches,
+  // but while they are fresh a good share of the usual ways in (web content, Google's own services) stays patched.
+  const layers = '\\nStill updated through the store:'
+    + '\\n  WebView (web engine inside apps): ' + (j.webview || 'the TV does not say')
+    + '\\n  Google Play services: ' + aged(j.play_services)
+    + '\\n  Google Play system update: ' + aged(j.play_system);
+  if (!j.patch) return '\\nSecurity patch: the TV does not say' + layers;
+  const months = monthsSince(j.patch);
   return '\\nAndroid ' + j.android + ', security patch ' + j.patch + ' (' + months + ' months old)'
     + (months > 6 ? '\\nWARNING: ' + months + ' monthly rounds of security fixes are missing. Check for a system update in the TV menu;'
-      + ' if none comes any more, see "When updates stop" in the README.' : '');
+      + ' if none comes any more, see "When updates stop" in the README.' : '') + layers;
 };
 const showHealth = j => {
   const text = document.getElementById('opt');

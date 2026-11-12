@@ -85,20 +85,26 @@ assert ns["privacy"]() == {}, "an unreadable answer shows as no answer, never as
 assert get("/" + TOKEN + "/privacy", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/privacy")[0] == 404, "privacy report needs a paired device"
 assert post("/" + TOKEN + "/tune/run", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "am kill-all; pm trim-caches 999G", "optimize is one fixed command"
 assert post("/" + TOKEN + "/tune/wipe", cookie="dev=" + cookie)[0] == 404
-ns["adb"] = lambda *a, **k: "MemTotal:        1727336 kB\nMemAvailable:     755988 kB\n@disk\n/dev/block/x   7651016 1809612   5693948  25% /data\n@up\n14563.73 46033.10\n@os\n14\n2025-07-05\n"
+ns["adb"] = lambda *a, **k: "MemTotal:        1727336 kB\nMemAvailable:     755988 kB\n@disk\n/dev/block/x   7651016 1809612   5693948  25% /data\n@up\n14563.73 46033.10\n@os\n14\n2025-07-05\n@layers\n  Current WebView package (name, version): (com.google.android.webview, 157.0.8103.40)\n    lastUpdateTime=2026-11-09 18:26:13\n    versionName=2024-05-01 S+\n"
 assert ns["health"]() == {"ram_free": 738, "ram_total": 1686, "disk_free": 5560, "disk_total": 7471, "hours": 4,
-                          "android": "14", "patch": "2025-07-05"}, "optimize panel numbers are parsed from the TV's answer"
+                          "android": "14", "patch": "2025-07-05", "webview": "157.0.8103.40", "play_services": "2026-11-09",
+                          "play_system": "2024-05-01"}, "optimize panel numbers are parsed from the TV's answer"
 ns["adb"] = lambda *a, **k: "garbage"
 assert ns["health"]() == {}
 assert get("/" + TOKEN + "/health", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/health")[0] == 404, "optimize panel needs a paired device"
 assert post("/" + TOKEN + "/sec/cast/off", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "pm disable-user --user 0 com.google.android.apps.mediashell", "security switch"
 assert post("/" + TOKEN + "/sec/ads/limit", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "settings put secure limit_ad_tracking 1"
 assert post("/" + TOKEN + "/sec/cast/uninstall", cookie="dev=" + cookie)[0] == 404, "security switches come from a fixed table"
-ns["adb"] = lambda *a, **k: ("null\n@\ncom.example.launcher/com.example.Listener\n@\n0\n@\n0\n@\nNo operations.\n@\n@\nnull\n@\n1\n0\n@\n"
-                             "LISTEN 0 0 0.0.0.0:8008 0.0.0.0:*\nLISTEN 0 0 *:5555 *:*\nLISTEN 0 0 127.0.0.1:4000 0.0.0.0:*\nLISTEN 0 0 *:40000 *:*\n")
+ns["adb"] = lambda *a, **k: "\n#next#\n".join((
+    "null", "com.example.launcher/com.example.Listener", "0", "0", "No operations.", "", "null", "1\n0",
+    "LISTEN 0 0 0.0.0.0:8008 0.0.0.0:* uid:10050 ino:1 sk:0\nLISTEN 0 0 *:5555 *:* uid:2000 ino:2 sk:0\n"
+    "LISTEN 0 0 127.0.0.1:4000 0.0.0.0:* uid:10050 ino:3 sk:0\nLISTEN 0 0 *:40000 *:* uid:19998 ino:4 sk:0\nLISTEN 0 0 *:41000 *:* ino:5 sk:0\n",
+    "package:com.example.cast uid:10050\npackage:com.netflix.ninja uid:10070\n",
+    "UID NAME\n 2000 adbd\n19998 some@1.0-daemon\n10050 com.example.cast\n"))
 assert ns["security"]() == {"accessibility": [], "listeners": ["com.example.launcher"], "location_on": False, "hotword_on": False,
                             "installers": [], "usage": [], "ads_limited": False, "cast": "on",
-                            "ports": [[5555, "network debugging (adb, what this remote uses)"], [8008, "Cast"], [40000, "unknown"]]}, "security report is parsed from the TV's answer"
+                            "ports": [[5555, "network debugging (adb, what this remote uses)", "adbd"], [8008, "Cast", "com.example.cast"],
+                                      [40000, "unknown", "some@1.0-daemon"], [41000, "unknown", "the system"]]}, "security report is parsed from the TV's answer"
 ns["adb"] = lambda *a, **k: "garbage"
 assert ns["security"]() == {}
 assert get("/" + TOKEN + "/security", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/security")[0] == 404, "security report needs a paired device"
