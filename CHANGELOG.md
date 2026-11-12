@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-12 (states made explicit, part 2)
+- Fix: the wrong-secret count of an address below 5 never expired, so five slips spread over weeks ended in a lockout. A wrong secret is now forgotten after 5 minutes; five in a row still lock the address for 5 minutes and the lockout still ends by itself. The three states (clean, counting, locked) are written down in the code.
+- Optimize and Clean restart run one at a time: while one runs both buttons are off, so a second press cannot start a second clean-up, spoil the before-and-after numbers or overlap a restart.
+- Known and left as it is: the first key pressed right after the TV restarted can be lost, because the long-lived connection to the TV is found dead only when it is used.
+
 ## 2026-11-12 (panels never stay stuck)
 - Privacy, Security and Optimize panels: a request that fails on the way (phone off the Wi-Fi, the remote's computer asleep) is now shown as "The TV did not answer." Before, the panel stayed on "Asking the TV..." and the Optimize button on "Optimizing..." with no sign that anything had gone wrong.
 - "Revoke all permissions" goes back to its own label when the TV does not answer after a revoke. Before, it stayed on "Revoking...".

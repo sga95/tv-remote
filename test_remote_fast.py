@@ -120,6 +120,15 @@ for _ in range(5):
     get("/wrong/", ip="192.168.0.77")
 assert get("/" + TOKEN + "/", cookie="dev=" + cookie, ip="192.168.0.77")[0] == 404, "5 wrong secrets lock the address"
 assert get("/" + ADMIN + "/", ip="192.168.0.77")[0] == 200, "the owner secret still gets in"
+for _ in range(4):
+    get("/wrong/", ip="192.168.0.78")
+assert ns["FAILS"]["192.168.0.78"][0] == 4
+ns["FAILS"]["192.168.0.78"] = (4, 0)  # as if the last wrong secret were more than 5 minutes old
+get("/wrong/", ip="192.168.0.78")
+assert ns["FAILS"]["192.168.0.78"][0] == 1, "wrong secrets older than 5 minutes are forgotten: one slip a day never adds up to a lockout"
+ns["FAILS"]["192.168.0.77"] = (5, 0)  # the lockout time has passed
+assert get("/" + TOKEN + "/", cookie="dev=" + cookie, ip="192.168.0.77")[0] == 200, "a lockout ends by itself after 5 minutes"
+assert "optimize.disabled = true" in ns["page"]("x") and "el.disabled = true;" in ns["page"]("x"), "Optimize and Clean restart run one at a time"
 assert all(ord(c) < 128 for c in ns["page"]("x", True)), "page is plain ASCII"
 
 # --- Stays local: the code has no way to call out except adb to the TV (plus two read-only Windows tools for the traffic watch).

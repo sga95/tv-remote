@@ -222,7 +222,7 @@ flowchart TD
 
 - **Closed by default.** It needs `tv.txt`, a certificate and a paired device before the plain URL answers. Without a certificate it refuses to start and never falls back to plain HTTP (TLS 1.2 minimum).
 - **Home network only.** Binds to the laptop LAN address only, serves private-range clients only.
-- **Two secrets** in the URL path, compared in constant time. Five wrong secrets lock that client address for five minutes. The owner secret always gets through.
+- **Two secrets** in the URL path, compared in constant time. Five wrong secrets in a row, each within five minutes of the one before, lock that client address for five minutes; a wrong secret older than five minutes is forgotten, so an occasional slip never adds up to a lockout. The owner secret always gets through.
 - **Pairing.** The owner URL gives the device a random 256-bit cookie (`Secure`, `HttpOnly`, `SameSite=Strict`, 90 days). The server stores only its SHA-256 hash (newest ten devices) and compares in constant time. Encrypting the cookie would add nothing: it is opaque random data and already encrypted by TLS.
 - **Fixed commands.** Commands to the TV come only from fixed tables (keys, apps, sound presets, 1 to 5 volume steps, the four privacy switches, revoke all, the Cast and ad switches, optimize, clean restart). User input is only a lookup key, never part of a command. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
 - **Strict response headers** (no-store, CSP with `default-src 'none'`, nosniff, no referrer, no framing, no camera/microphone/location). Requests and secrets are never logged. Nothing is recorded about what is watched.

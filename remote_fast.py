@@ -890,8 +890,8 @@ const worse = (was, now) => {
 };
 const restart = async el => {
   if (el.disabled || !confirm('Restart the TV now? It takes about a minute and stops whatever is playing.')) return;
-  const text = document.getElementById('opt');
-  el.disabled = true;
+  const text = document.getElementById('opt'), optimize = document.getElementById('tunebtn');
+  el.disabled = optimize.disabled = true;   // one job at a time: no second restart and no Optimize while this one runs
   try {
     const was = await picture().catch(() => ({}));
     if (!was.ok) { text.textContent = 'The TV did not answer, so nothing was done.'; return; }
@@ -916,9 +916,16 @@ const restart = async el => {
           + '\\nIf you do not expect this, press Power to turn the TV off.\\n'
         : 'Nothing is more exposed than before: blocks, permissions, Cast, settings and port owners are as you left them.\\n');
     showPrivacy(now.p); showSecurity(now.s); showHealth(now.h);
-  } finally { el.disabled = false; }
+  } finally { el.disabled = optimize.disabled = false; }
 };
-const tune = el => { if (!last) return; before = last; press('tune/run'); el.textContent = 'Optimizing...'; setTimeout(readHealth, 5000); };
+// Optimize is idle or running. While it runs (5 seconds) the button is off, so a second press cannot start a second
+// clean-up or spoil the "before" numbers; the answer from the TV, or its absence, turns it back on.
+const tune = el => {
+  if (!last || el.disabled) return;
+  before = last; el.disabled = true;
+  press('tune/run'); el.textContent = 'Optimizing...';
+  setTimeout(() => { el.disabled = false; readHealth(); }, 5000);
+};
 new IntersectionObserver(seen => { seen[0].isIntersecting && readHealth(); }).observe(document.getElementById('opt'));
 
 // ---------------------------------------------------------------- Fit to the screen
@@ -1043,12 +1050,16 @@ class H(BaseHTTPRequestHandler):
         if not ipaddress.ip_address(ip).is_private:  # home-network addresses only
             ev("INBOUND from non-LAN address", ip)
             return None
+        # The wrong-secret count of an address has three states: clean (no entry), counting (1 to 4, forgotten 5 minutes
+        # after the last wrong secret) and locked (5, refused until 5 minutes have passed). Time alone moves it back to clean.
         count, until = FAILS.get(ip, (0, 0))
+        if time.time() >= until:
+            count = 0  # the last wrong secret is older than 5 minutes: start counting afresh
         secret, _, rest = path.lstrip("/").partition("/")
         # Both comparisons always run, each in constant time: the answer time does not tell which secret was closer.
         user = hmac.compare_digest(secret.encode(), TOKEN.encode())
         admin = hmac.compare_digest(secret.encode(), ADMIN.encode())
-        if count >= 5 and time.time() < until and not admin:
+        if count >= 5 and not admin:
             ev("request while locked out", ip)  # 5 wrong secrets = locked for 5 minutes; the owner secret still gets in
             return None
         if admin or (user and cookie_ok(self.headers)):  # the plain remote also needs a paired phone
@@ -1058,7 +1069,7 @@ class H(BaseHTTPRequestHandler):
         # Refused: count it.
         if len(FAILS) > 1000:
             FAILS.clear()  # a flood of addresses must not grow memory without limit
-        FAILS[ip] = (1 if count >= 5 else count + 1, time.time() + 300)  # count >= 5 here means an old lockout just ended
+        FAILS[ip] = (count + 1, time.time() + 300)
         locked = FAILS[ip][0] == 5
         ST["bad"] += 1
         ST["locks"] += locked
