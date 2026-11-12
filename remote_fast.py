@@ -752,7 +752,11 @@ let privacy = null;   // the TV's last answer (null until it has answered)
 const list = names => names.length ? names.join(', ') : 'none';
 const showPrivacy = j => {
   const text = document.getElementById('pvt');
-  if (!('mic_blocked' in j)) { privacy = null; text.textContent = 'The TV did not answer.'; return; }
+  if (!('mic_blocked' in j)) {
+    privacy = null; text.textContent = 'The TV did not answer.';
+    document.getElementById('rev').textContent = 'Revoke all permissions';   // never left on "Revoking..."
+    return;
+  }
   privacy = j;
   // A control with nothing to act on is greyed out and says why, so the panel reads at a glance.
   // Exception: a block that is already on stays clickable even with no device found, so it can always be turned off.
@@ -771,7 +775,9 @@ const showPrivacy = j => {
     + '\\nApps holding the microphone permission: ' + list(j.mic_apps)
     + '\\nApps holding the camera permission: ' + list(j.cam_apps);
 };
-const readPrivacy = () => fetch('/'+T+'/privacy').then(r => r.json()).then(showPrivacy).catch(() => {});
+// A panel is always in one of three states: asking, answered, or no answer. A request that fails on the way
+// (phone off the Wi-Fi, the remote's computer asleep) is shown as "no answer", never left on "Asking the TV...".
+const readPrivacy = () => fetch('/'+T+'/privacy').then(r => r.json()).then(showPrivacy).catch(() => showPrivacy({}));
 // A switch: ask for the opposite of what the TV last reported, then read the TV again.
 const priv = what => {
   if (!privacy || document.getElementById(what).disabled) return;
@@ -807,7 +813,7 @@ const showSecurity = j => {
   ads.textContent = 'Ad personalisation: ' + (j.ads_limited ? 'LIMITED' : 'not limited');
   ads.classList.toggle('on', j.ads_limited);
 };
-const readSecurity = () => fetch('/'+T+'/security').then(r => r.json()).then(showSecurity).catch(() => {});
+const readSecurity = () => fetch('/'+T+'/security').then(r => r.json()).then(showSecurity).catch(() => showSecurity({}));
 // A switch: ask for the opposite of what the TV last reported, then read the TV again (Cast needs a few seconds to start or stop).
 const secure = what => {
   if (!secState || document.getElementById(what == 'cast' ? 'cast' : 'adl').disabled) return;
@@ -853,7 +859,7 @@ const showHealth = j => {
 };
 let last = null;     // the numbers now on screen
 let note = '';       // the report of the last clean restart, kept above the numbers until the page is closed
-const readHealth = () => fetch('/'+T+'/health').then(r => r.json()).then(showHealth).catch(() => {});
+const readHealth = () => fetch('/'+T+'/health').then(r => r.json()).then(showHealth).catch(() => showHealth({}));
 
 // Clean restart. 1) Take a picture of what matters: the privacy blocks, who holds the permissions, the security
 // settings, the open ports and who holds them. 2) Clean up and restart the TV. 3) Wait until it answers again with a

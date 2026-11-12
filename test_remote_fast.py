@@ -166,6 +166,9 @@ for name, what in tried:
 # The page cannot load from, or send to, anywhere but the server it came from.
 pg = ns["page"]("x", True)
 assert not re.search(r"[a-z][a-z0-9+.-]*://|\b(src|href|action)\s*=", pg, re.I), "no outside address, no link, no form in the page"
+# A panel never stays on "Asking the TV...": a request that fails on the way is shown like a TV that did not answer.
+for show in ("showPrivacy", "showSecurity", "showHealth"):
+    assert f".then({show}).catch(() => {show}({{}}))" in pg, show + " shows a failed request as no answer"
 assert not re.search(r"fetch\((?!'/'\+T\+)|XMLHttpRequest|WebSocket|sendBeacon|EventSource|import\(", pg), "every request goes to the same server, under the secret path"
 
 

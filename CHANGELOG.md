@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-12 (panels never stay stuck)
+- Privacy, Security and Optimize panels: a request that fails on the way (phone off the Wi-Fi, the remote's computer asleep) is now shown as "The TV did not answer." Before, the panel stayed on "Asking the TV..." and the Optimize button on "Optimizing..." with no sign that anything had gone wrong.
+- "Revoke all permissions" goes back to its own label when the TV does not answer after a revoke. Before, it stayed on "Revoking...".
+- Page script only: no new command, no new endpoint, nothing changes on the server side or in what is sent to the TV. Checked by running the page script against a failing and an empty answer; not yet checked on a real phone and TV. Test added.
+
 ## 2026-11-12 (apps left open)
 - Optimize (and so Clean restart) now also closes the streaming apps of the app list that are not on screen. Found on the tested TV: after a restart the TV started one streaming app by itself, and opening another app from the TV's own menu left it running in the background (about 160 MB). The app on screen is read from the TV and skipped; checked on the TV that it keeps its process.
 

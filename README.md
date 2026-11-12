@@ -84,6 +84,7 @@ Every layout also has, unless it hides them on purpose:
 - **Checked on the tested TV**: the TV accepts both blocks, stores them and reports them back, and turning them off restores the previous state. The tested TV reports no camera and one built-in microphone input. Revoke all was run on it: an app that held the microphone permission no longer held it afterwards, read back from the TV.
 - **Not checked**: no recording was made to prove that an app really gets silence while the block is on; that part is Android's own enforcement. Whether the block survives a TV restart was not tested (the panel shows the real state when you open it). A microphone that does not go through Android (for example one handled only by the TV maker's firmware) is outside this switch.
 - **Side effect**: with the microphone blocked, voice search does not hear you until you allow it again.
+- **Three states, in all three panels** (Privacy, Security, Optimize): "Asking the TV...", the answer, or "The TV did not answer.". The last one also covers a request that never reached the remote's computer (phone off the Wi-Fi, computer asleep), so a panel never stays on "Asking the TV..." and a button never stays on "Revoking..." or "Optimizing...". Scroll the panel out of view and back to ask again.
 - The panel changes nothing else: no app is disabled, enabled or uninstalled.
 
 </details>
