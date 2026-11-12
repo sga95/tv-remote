@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-12 (security panel)
+- New Security panel in the settings: a read-only check (accessibility services, notification readers, installers, usage access, location, voice hotword) and the list of network ports the TV listens on, with names for the well-known ones.
+- Cast switch: `pm disable-user` and `pm enable` plus a service start for Google's Cast receiver. Measured on the tested TV: off closes the Cast ports, on restores them; without the service start they only came back after a restart.
+- Ad personalisation switch: sets or removes `limit_ad_tracking`. A request to apps, not a block.
+- New endpoints behind the same secret and pairing checks: `GET security`, `POST sec/cast/on|off`, `POST sec/ads/limit|free`. Tests added.
+
 ## 2026-11-12 (optimize panel)
 - New Optimize TV panel in the settings: free memory, free storage, time since the TV started, Android version and the age of the last security patch, read from the TV when the panel scrolls into view.
 - Button "Optimize now": one fixed command (`am kill-all; pm trim-caches 999G`), then the TV is read again and the change is shown next to each number. Measured on the tested TV: memory unchanged, 146 MB of storage freed.

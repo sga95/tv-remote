@@ -130,6 +130,30 @@ PRIV_ASK = ("dumpsys sensor_privacy; echo @cam; dumpsys media.camera | grep 'Num
             "echo @in; dumpsys media.audio_policy | grep -E '^  [0-9]+\\. Port ID.*AUDIO_DEVICE_IN_'; "
             "echo @apps; " + _HOLDERS)
 
+# Security panel. A read-only look at the settings that decide who can watch, listen or get in, plus two switches.
+CAST = "com.google.android.apps.mediashell"  # Google's Cast receiver ("Chromecast built-in"): lets any device on the Wi-Fi send video to the TV
+SEC = {
+    # Off: the receiver is disabled for the TV's user and its network ports close. Nothing is uninstalled.
+    "cast/off": "pm disable-user --user 0 " + CAST,
+    # On again: enable it and start its service (measured: without the start it only comes back after a TV restart).
+    "cast/on": "pm enable " + CAST + "; am startservice -n " + CAST + "/.MediaShellCastReceiverService",
+    # Ask apps not to personalise advertising. A request to well-behaved apps, not a block: it cannot be verified from here.
+    "ads/limit": "settings put secure limit_ad_tracking 1", "ads/free": "settings delete secure limit_ad_tracking",
+}
+# The read-only question, in nine parts separated by "@": accessibility services, apps that read notifications,
+# location, voice hotword, apps allowed to install apps, apps allowed to read usage, the advertising request,
+# the Cast receiver (installed? disabled?) and the network ports the TV listens on.
+SEC_ASK = "; echo @; ".join((
+    "settings get secure enabled_accessibility_services", "settings get secure enabled_notification_listeners",
+    "settings get secure location_mode", "settings get global hotword_detection_enabled",
+    "cmd appops query-op REQUEST_INSTALL_PACKAGES allow", "cmd appops query-op GET_USAGE_STATS allow",
+    "settings get secure limit_ad_tracking",
+    "pm list packages | grep -c " + CAST + "; pm list packages -d | grep -c " + CAST,
+    "ss -ltn | grep LISTEN"))
+# Well-known ports of an Android TV, to give the open doors a name. Any other port is shown as "unknown".
+PORTS = {5555: "network debugging (adb, what this remote uses)", 8008: "Cast", 8009: "Cast", 8443: "Cast",
+         6465: "Android TV remote service", 6466: "Android TV remote service", 6467: "Android TV remote service"}
+
 # Optimize. One fixed command with the two steps that are safe on any Android TV and need no list of apps:
 #   am kill-all            ends background processes that Android itself marks as safe to end (never the app on screen)
 #   pm trim-caches 999G    asks every app to drop its cache files (thumbnails, temporary downloads); apps rebuild them as needed
@@ -269,6 +293,31 @@ def privacy():
     return {"mic_blocked": block.get("1") == "1", "cam_blocked": block.get("2") == "1",
             "cameras": int(count[1]) if count else None, "mics": mics,
             "mic_apps": holding["RECORD_AUDIO"], "cam_apps": holding["CAMERA"]}
+
+
+def security():
+    """What the Security panel shows, read from the TV each time; {} if the TV does not answer.
+    Lists hold package names. "cast" is "on", "off" or "none" (no Cast receiver on this TV). "ports" is [[8008, "Cast"], ...]."""
+    try:
+        access, listeners, location, hotword, installers, usage, ads, cast, ports = adb("-s", TV, "shell", SEC_ASK, timeout=10).split("@")
+        installed, disabled = (int(n) for n in cast.split())
+    except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its nine parts
+        return {}
+
+    def services(text):  # "pkg/class:pkg2/class" or "null" -> ["pkg", "pkg2"]
+        return sorted({item.split("/")[0] for item in text.strip().split(":") if "/" in item})
+
+    def packages(text):  # one package per line; other lines ("No operations.") have a space in them
+        return [line.strip() for line in text.splitlines() if "." in line and " " not in line.strip()]
+
+    # Listening sockets, without the ones only the TV itself can reach (loopback addresses).
+    doors = {int(port) for address, port in re.findall(r"LISTEN\s+\d+\s+\d+\s+(\S+):(\d+)\s", ports)
+             if not address.startswith("127.") and "::1" not in address}
+    return {"accessibility": services(access), "listeners": services(listeners),
+            "location_on": location.strip() not in ("0", "null"), "hotword_on": hotword.strip() == "1",
+            "installers": packages(installers), "usage": packages(usage), "ads_limited": ads.strip() == "1",
+            "cast": "none" if not installed else "off" if disabled else "on",
+            "ports": [[port, PORTS.get(port, "unknown")] for port in sorted(doors)]}
 
 
 def health():
@@ -460,8 +509,8 @@ h2{margin:6px 2px 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase
 .seg button.on{background:var(--s2);color:var(--tx);box-shadow:inset 0 0 0 1px #34344a}
 
 /* Privacy panel: what the TV reported (#pvt) and the two switches. A switch that is .on means "blocked". */
-#prv{grid-template-columns:repeat(2,1fr)}
-#pvt,#opt{margin:0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:var(--mu);white-space:pre-wrap}
+#prv,#secb{grid-template-columns:repeat(2,1fr)}
+#pvt,#opt,#sct{margin:0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:var(--mu);white-space:pre-wrap}
 
 /* Owner status panel */
 #st{margin:6px 0 0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:#8fb59a;white-space:pre-wrap}
@@ -689,6 +738,39 @@ const revoke = el => { press('priv/apps/revoke'); el.textContent = 'Revoking...'
 // Reading takes the TV about 2 seconds, so it is done when the panel scrolls into view, not on every page load.
 new IntersectionObserver(seen => { seen[0].isIntersecting && readPrivacy(); }).observe(document.getElementById('pvt'));
 
+// ---------------------------------------------------------------- Security panel (in the settings)
+// A read-only check of the TV's settings, one line each: "ok" when nothing is exposed, "CHECK" when something is
+// worth a look. Then the network ports the TV listens on, and two switches. Everything shown comes from the TV.
+let secState = null;   // the TV's last answer
+const line = (names, what) => (names.length ? 'CHECK ' : 'ok    ') + what + ': ' + list(names);
+const showSecurity = j => {
+  const text = document.getElementById('sct');
+  if (!('ports' in j)) { secState = null; text.textContent = 'The TV did not answer.'; return; }
+  secState = j;
+  text.textContent = line(j.accessibility, 'Accessibility services (can read the screen)')
+    + '\\n' + line(j.listeners, 'Apps that read notifications')
+    + '\\n' + line(j.installers, 'Apps allowed to install apps')
+    + '\\n' + line(j.usage, 'Apps that see what you use')
+    + '\\n' + (j.location_on ? 'CHECK Location: on' : 'ok    Location: off')
+    + '\\n' + (j.hotword_on ? 'CHECK Voice hotword: listening' : 'ok    Voice hotword: off')
+    + '\\nOpen doors on the home network:'
+    + (j.ports.length ? j.ports.map(p => '\\n  ' + p[0] + '  ' + p[1]).join('') : ' none');
+  const cast = document.getElementById('cast'), ads = document.getElementById('adl');
+  cast.disabled = j.cast == 'none';
+  cast.textContent = 'Cast: ' + (j.cast == 'none' ? 'not found' : j.cast == 'on' ? 'on' : 'OFF');
+  cast.classList.toggle('on', j.cast == 'off');
+  ads.textContent = 'Ad personalisation: ' + (j.ads_limited ? 'LIMITED' : 'not limited');
+  ads.classList.toggle('on', j.ads_limited);
+};
+const readSecurity = () => fetch('/'+T+'/security').then(r => r.json()).then(showSecurity).catch(() => {});
+// A switch: ask for the opposite of what the TV last reported, then read the TV again (Cast needs a few seconds to start or stop).
+const secure = what => {
+  if (!secState || document.getElementById(what == 'cast' ? 'cast' : 'adl').disabled) return;
+  press('sec/' + (what == 'cast' ? 'cast/' + (secState.cast == 'on' ? 'off' : 'on') : 'ads/' + (secState.ads_limited ? 'free' : 'limit')));
+  setTimeout(readSecurity, what == 'cast' ? 7000 : 800);
+};
+new IntersectionObserver(seen => { seen[0].isIntersecting && readSecurity(); }).observe(document.getElementById('sct'));
+
 // ---------------------------------------------------------------- Optimize panel (in the settings)
 // Shows the TV's free memory, free storage and how long it has been on. The button runs the fixed clean-up on the TV,
 // then the TV is read again and the change is shown next to each number, so the effect is measured, not claimed.
@@ -797,6 +879,9 @@ def page(tok, admin=False):
         '<section class=seg id=prv><button id=mic onpointerdown="priv(\'mic\')">Microphone</button>'
         '<button id=cam onpointerdown="priv(\'cam\')">Camera</button></section>'
         '<button id=rev onclick="revoke(this)">Revoke all permissions</button>'
+        '<h2>Security</h2><p id=sct>Asking the TV...</p>'
+        '<section class=seg id=secb><button id=cast onpointerdown="secure(\'cast\')">Cast</button>'
+        '<button id=adl onpointerdown="secure(\'ads\')">Ad personalisation</button></section>'
         '<h2>Optimize TV</h2><p id=opt>Asking the TV...</p>'
         '<button id=tunebtn onclick="tune(this)">Optimize now</button>'
         + ("<pre id=st></pre>" if admin else "") + '</footer>')
@@ -878,6 +963,8 @@ class H(BaseHTTPRequestHandler):
             self.reply(200, json.dumps(vol_get()).encode(), "application/json")
         elif rest == "privacy":
             self.reply(200, json.dumps(privacy()).encode(), "application/json")
+        elif rest == "security":
+            self.reply(200, json.dumps(security()).encode(), "application/json")
         elif rest == "health":
             self.reply(200, json.dumps(health()).encode(), "application/json")
         elif rest == "stats" and self.admin:
@@ -901,6 +988,8 @@ class H(BaseHTTPRequestHandler):
             cmd = SND[name]
         elif kind == "priv" and name in PRIV:
             cmd = PRIV[name]
+        elif kind == "sec" and name in SEC:
+            cmd = SEC[name]
         elif kind == "tune" and name in TUNE:
             cmd = TUNE[name]
         else:

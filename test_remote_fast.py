@@ -91,6 +91,17 @@ assert ns["health"]() == {"ram_free": 738, "ram_total": 1686, "disk_free": 5560,
 ns["adb"] = lambda *a, **k: "garbage"
 assert ns["health"]() == {}
 assert get("/" + TOKEN + "/health", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/health")[0] == 404, "optimize panel needs a paired device"
+assert post("/" + TOKEN + "/sec/cast/off", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "pm disable-user --user 0 com.google.android.apps.mediashell", "security switch"
+assert post("/" + TOKEN + "/sec/ads/limit", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "settings put secure limit_ad_tracking 1"
+assert post("/" + TOKEN + "/sec/cast/uninstall", cookie="dev=" + cookie)[0] == 404, "security switches come from a fixed table"
+ns["adb"] = lambda *a, **k: ("null\n@\ncom.example.launcher/com.example.Listener\n@\n0\n@\n0\n@\nNo operations.\n@\n@\nnull\n@\n1\n0\n@\n"
+                             "LISTEN 0 0 0.0.0.0:8008 0.0.0.0:*\nLISTEN 0 0 *:5555 *:*\nLISTEN 0 0 127.0.0.1:4000 0.0.0.0:*\nLISTEN 0 0 *:40000 *:*\n")
+assert ns["security"]() == {"accessibility": [], "listeners": ["com.example.launcher"], "location_on": False, "hotword_on": False,
+                            "installers": [], "usage": [], "ads_limited": False, "cast": "on",
+                            "ports": [[5555, "network debugging (adb, what this remote uses)"], [8008, "Cast"], [40000, "unknown"]]}, "security report is parsed from the TV's answer"
+ns["adb"] = lambda *a, **k: "garbage"
+assert ns["security"]() == {}
+assert get("/" + TOKEN + "/security", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/security")[0] == 404, "security report needs a paired device"
 assert get("/" + TOKEN + "/stats", cookie="dev=" + cookie)[0] == 404, "status panel is owner only"
 assert get("/" + ADMIN + "/stats")[0] == 200
 assert get("/" + ADMIN + "/", ip="8.8.8.8")[0] == 404, "non-LAN client refused"
