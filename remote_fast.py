@@ -130,6 +130,17 @@ PRIV_ASK = ("dumpsys sensor_privacy; echo @cam; dumpsys media.camera | grep 'Num
             "echo @in; dumpsys media.audio_policy | grep -E '^  [0-9]+\\. Port ID.*AUDIO_DEVICE_IN_'; "
             "echo @apps; " + _HOLDERS)
 
+# Optimize. One fixed command with the two steps that are safe on any Android TV and need no list of apps:
+#   am kill-all            ends background processes that Android itself marks as safe to end (never the app on screen)
+#   pm trim-caches 999G    asks every app to drop its cache files (thumbnails, temporary downloads); apps rebuild them as needed
+# Measured on the tested TV: the first step freed almost nothing (the remote already closes other apps when one is
+# opened), the second freed 146 MB of storage. Caches are rewritten afterwards, so this is not something to press daily.
+TUNE = {"run": "am kill-all; pm trim-caches 999G"}
+# The read-only question for the Optimize panel: memory, storage of the data partition, seconds since the TV started,
+# the Android version and the date of the last security patch the TV received.
+TUNE_ASK = ("grep -E 'MemTotal|MemAvailable' /proc/meminfo; echo @disk; df /data | tail -1; echo @up; cat /proc/uptime; "
+            "echo @os; getprop ro.build.version.release; getprop ro.build.version.security_patch")
+
 # ============================================================ 3. Secrets and pairing
 # Two secrets, each one the first part of an address:
 #   TOKEN  opens the remote, and only on a phone that was paired before
@@ -258,6 +269,22 @@ def privacy():
     return {"mic_blocked": block.get("1") == "1", "cam_blocked": block.get("2") == "1",
             "cameras": int(count[1]) if count else None, "mics": mics,
             "mic_apps": holding["RECORD_AUDIO"], "cam_apps": holding["CAMERA"]}
+
+
+def health():
+    """What the Optimize panel shows, in MB and hours, read from the TV each time; {} if the TV does not answer.
+    Example: {"ram_free": 738, "ram_total": 1686, "disk_free": 5706, "disk_total": 7471, "hours": 4,
+              "android": "14", "patch": "2025-07-05"}   ("patch" is "" if the TV does not state a date)"""
+    try:
+        mem, disk, up, system = re.split(r"@disk|@up|@os", adb("-s", TV, "shell", TUNE_ASK))
+        kb = {name: int(value) for name, value in re.findall(r"(MemTotal|MemAvailable):\s+(\d+)", mem)}
+        size, used, free = (int(n) for n in disk.split()[1:4])  # df prints: device, size, used, free (in kB), percent, mount point
+        patch = re.search(r"\d{4}-\d{2}-\d{2}", system)         # only a real date is passed on to the page
+        return {"ram_free": kb["MemAvailable"] // 1024, "ram_total": kb["MemTotal"] // 1024,
+                "disk_free": free // 1024, "disk_total": size // 1024, "hours": int(float(up.split()[0]) // 3600),
+                "android": (re.search(r"[\d.]+", system) or [""])[0], "patch": patch[0] if patch else ""}
+    except (subprocess.TimeoutExpired, OSError, ValueError, KeyError, IndexError):  # no answer, or not the answer expected
+        return {}
 
 
 def lan_ip():
@@ -394,6 +421,7 @@ footer{max-width:440px;margin:0 auto;padding-top:24px;display:grid;gap:12px}
 button{font:inherit;color:var(--tx);background:var(--s);border:1px solid var(--bd);border-radius:20px;height:56px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s,background .15s}
 button:active{transform:scale(.95);background:var(--s2)}
 button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+button:disabled{opacity:.4}  /* nothing to act on (for example: no camera found) */
 svg{width:24px;height:24px}
 
 /* App row: each button has a short line in the app's own colour (--c) */
@@ -433,7 +461,7 @@ h2{margin:6px 2px 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase
 
 /* Privacy panel: what the TV reported (#pvt) and the two switches. A switch that is .on means "blocked". */
 #prv{grid-template-columns:repeat(2,1fr)}
-#pvt{margin:0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:var(--mu);white-space:pre-wrap}
+#pvt,#opt{margin:0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:var(--mu);white-space:pre-wrap}
 
 /* Owner status panel */
 #st{margin:6px 0 0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:#8fb59a;white-space:pre-wrap}
@@ -632,12 +660,18 @@ const showPrivacy = j => {
   const text = document.getElementById('pvt');
   if (!('mic_blocked' in j)) { privacy = null; text.textContent = 'The TV did not answer.'; return; }
   privacy = j;
+  // A control with nothing to act on is greyed out and says why, so the panel reads at a glance.
+  // Exception: a block that is already on stays clickable even with no device found, so it can always be turned off.
+  const found = {mic: j.mics.length > 0, cam: j.cameras > 0};
   for (const what of ['mic', 'cam']) {
     const button = document.getElementById(what), blocked = j[what + '_blocked'];
-    button.textContent = (what == 'mic' ? 'Microphone: ' : 'Camera: ') + (blocked ? 'BLOCKED' : 'allowed');
+    button.disabled = !found[what] && !blocked;
+    button.textContent = (what == 'mic' ? 'Microphone: ' : 'Camera: ') + (blocked ? 'BLOCKED' : found[what] ? 'allowed' : 'not found');
     button.classList.toggle('on', blocked);
   }
-  document.getElementById('rev').textContent = 'Revoke all permissions';
+  const holders = j.mic_apps.length + j.cam_apps.length, rev = document.getElementById('rev');
+  rev.disabled = !holders;
+  rev.textContent = holders ? 'Revoke all permissions' : 'No permissions to revoke';
   text.textContent = 'Camera: ' + (j.cameras == null ? 'unknown' : j.cameras ? 'FOUND (' + j.cameras + ')' : 'not found')
     + '\\nMicrophone: ' + (j.mics.length ? 'FOUND (' + j.mics.join(', ') + ')' : 'not found')
     + '\\nApps holding the microphone permission: ' + list(j.mic_apps)
@@ -646,7 +680,7 @@ const showPrivacy = j => {
 const readPrivacy = () => fetch('/'+T+'/privacy').then(r => r.json()).then(showPrivacy).catch(() => {});
 // A switch: ask for the opposite of what the TV last reported, then read the TV again.
 const priv = what => {
-  if (!privacy) return;
+  if (!privacy || document.getElementById(what).disabled) return;
   press('priv/' + what + '/' + (privacy[what + '_blocked'] ? 'allow' : 'block'));
   setTimeout(readPrivacy, 700);
 };
@@ -654,6 +688,39 @@ const priv = what => {
 const revoke = el => { press('priv/apps/revoke'); el.textContent = 'Revoking...'; setTimeout(readPrivacy, 5000); };
 // Reading takes the TV about 2 seconds, so it is done when the panel scrolls into view, not on every page load.
 new IntersectionObserver(seen => { seen[0].isIntersecting && readPrivacy(); }).observe(document.getElementById('pvt'));
+
+// ---------------------------------------------------------------- Optimize panel (in the settings)
+// Shows the TV's free memory, free storage and how long it has been on. The button runs the fixed clean-up on the TV,
+// then the TV is read again and the change is shown next to each number, so the effect is measured, not claimed.
+let before = null;   // the numbers from just before the last clean-up (null = no clean-up yet)
+const gained = (now, was) => was == null || now == was ? '' : ' (' + (now > was ? '+' : '') + (now - was) + ' MB)';
+// How old the TV's last security patch is, counted with this phone's own clock: nothing is looked up anywhere.
+// Android publishes security fixes every month, so each month of age is one round of fixes this TV does not have.
+const patchLine = j => {
+  if (!j.patch) return '\\nSecurity patch: the TV does not say';
+  const then = new Date(j.patch), now = new Date();
+  const months = (now.getFullYear() - then.getFullYear()) * 12 + now.getMonth() - then.getMonth();
+  return '\\nAndroid ' + j.android + ', security patch ' + j.patch + ' (' + months + ' months old)'
+    + (months > 6 ? '\\nWARNING: ' + months + ' monthly rounds of security fixes are missing. Check for a system update in the TV menu;'
+      + ' if none comes any more, see "When updates stop" in the README.' : '');
+};
+const showHealth = j => {
+  const text = document.getElementById('opt');
+  document.getElementById('tunebtn').textContent = 'Optimize now';
+  if (!('ram_free' in j)) { text.textContent = 'The TV did not answer.'; return; }
+  const was = before || {};
+  text.textContent = 'Memory free: ' + j.ram_free + ' of ' + j.ram_total + ' MB' + gained(j.ram_free, was.ram_free)
+    + '\\nStorage free: ' + j.disk_free + ' of ' + j.disk_total + ' MB' + gained(j.disk_free, was.disk_free)
+    + '\\nOn for: ' + (j.hours < 48 ? j.hours + ' h' : Math.floor(j.hours / 24) + ' days')
+    + (j.hours >= 168 ? '\\nOn for over a week: a restart from the TV menu clears more than this button can.' : '')
+    + patchLine(j);
+  before = null;
+  last = j;
+};
+let last = null;     // the numbers now on screen
+const readHealth = () => fetch('/'+T+'/health').then(r => r.json()).then(showHealth).catch(() => {});
+const tune = el => { if (!last) return; before = last; press('tune/run'); el.textContent = 'Optimizing...'; setTimeout(readHealth, 5000); };
+new IntersectionObserver(seen => { seen[0].isIntersecting && readHealth(); }).observe(document.getElementById('opt'));
 
 // ---------------------------------------------------------------- Fit to the screen
 // Scale the whole remote with one zoom factor so it fits the screen as it is with the browser bars showing
@@ -730,6 +797,8 @@ def page(tok, admin=False):
         '<section class=seg id=prv><button id=mic onpointerdown="priv(\'mic\')">Microphone</button>'
         '<button id=cam onpointerdown="priv(\'cam\')">Camera</button></section>'
         '<button id=rev onclick="revoke(this)">Revoke all permissions</button>'
+        '<h2>Optimize TV</h2><p id=opt>Asking the TV...</p>'
+        '<button id=tunebtn onclick="tune(this)">Optimize now</button>'
         + ("<pre id=st></pre>" if admin else "") + '</footer>')
     script = JS.replace("@TOK@", tok).replace("@LIMITS@", json.dumps(VOL_LIMITS)) + (STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
@@ -809,6 +878,8 @@ class H(BaseHTTPRequestHandler):
             self.reply(200, json.dumps(vol_get()).encode(), "application/json")
         elif rest == "privacy":
             self.reply(200, json.dumps(privacy()).encode(), "application/json")
+        elif rest == "health":
+            self.reply(200, json.dumps(health()).encode(), "application/json")
         elif rest == "stats" and self.admin:
             self.reply(200, json.dumps(stats()).encode(), "application/json")
         else:
@@ -830,6 +901,8 @@ class H(BaseHTTPRequestHandler):
             cmd = SND[name]
         elif kind == "priv" and name in PRIV:
             cmd = PRIV[name]
+        elif kind == "tune" and name in TUNE:
+            cmd = TUNE[name]
         else:
             return self.reply(404)
         tv(cmd)

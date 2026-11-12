@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-12 (optimize panel)
+- New Optimize TV panel in the settings: free memory, free storage, time since the TV started, Android version and the age of the last security patch, read from the TV when the panel scrolls into view.
+- Button "Optimize now": one fixed command (`am kill-all; pm trim-caches 999G`), then the TV is read again and the change is shown next to each number. Measured on the tested TV: memory unchanged, 146 MB of storage freed.
+- Security patch age counted with the phone's clock, warning past six months. No CVE list is shipped and nothing is looked up online.
+- README: new section "When updates stop" with the steps that reduce the risk on a TV that gets no more updates, and what stays exposed.
+- New endpoints behind the same secret and pairing checks: `GET health`, `POST tune/run`. Tests added.
+- Privacy panel: a control with nothing to act on is greyed out and says why ("Camera: not found", "No permissions to revoke"); a block that is on stays clickable.
+
 ## 2026-11-12 (privacy panel)
 - New Privacy panel in the settings below the remote. It asks the TV (one read-only adb call) how many cameras it sees, which microphone inputs it has and which apps may record sound or use a camera, and shows the answer; nothing is stored.
 - Two switches, Microphone and Camera, turn Android's system-wide blocks on and off (`cmd sensor_privacy enable|disable 0 microphone|camera`, four fixed commands). The state shown always comes from the TV, read again after each press.

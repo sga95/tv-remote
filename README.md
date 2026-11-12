@@ -47,6 +47,7 @@ Every layout also has, unless it hides them on purpose:
 - **App launchers**: Netflix, Prime, YouTube, Spotify, Twitch, the launcher. Opening an app closes the other apps in the list, to free the TV's small RAM. Nothing runs in the background by design.
 - **Sound presets**: Voice, Movie, Night, Normal. They write the TV's own sound settings. The original values are kept in a restore file.
 - **Privacy panel** (in the settings, under Layout): what the TV itself reports about cameras and microphones, whether a camera and a microphone are found, two switches that block them for every app, and one button that revokes the microphone and camera permission from every app. Details below.
+- **Optimize TV** (in the settings, under Privacy): free memory, free storage, time since the TV started and the age of its last security patch, with one button that cleans up and shows the numbers before and after. Details below.
 - **Owner view**: the same remote plus a live status panel (TV reachable, apps in memory with their size, free RAM, adb shell state, uptime, taps, send time, wrong-secret attempts, lockouts, traffic watch, live records of suspicious events). Counters live in memory only.
 
 <details>
@@ -77,11 +78,26 @@ Every layout also has, unless it hides them on purpose:
 
 - **What it shows**, read from the TV each time the panel scrolls into view (it takes the TV about 2 seconds) and never stored: Camera found or not found, Microphone found or not found (built in, USB, Bluetooth, headset inputs), the apps that hold the microphone permission and the apps that hold the camera permission.
 - **What the switches do**: they turn on Android's own system-wide blocks (`cmd sensor_privacy`, Android 12 and later). While a block is on, the system gives every app silence or a black picture, whatever permission the app holds. After a press the page asks the TV again and shows the state the TV reports, never an assumed one.
+- **Greyed-out controls**: a switch with nothing to act on is greyed out and says why ("Camera: not found", "No permissions to revoke"), so the panel reads at a glance. A block that is already on stays clickable so it can always be turned off. This is done in the page; the server does not re-check the TV before a switch. Note for TVs that accept a USB webcam: the camera switch wakes up as soon as one is plugged in and the panel is opened again.
 - **Revoke all permissions**: one fixed command that runs on the TV, walks the TV's own app list and takes the microphone and camera permission away from every app that holds it (`pm revoke`). Android closes an app when it loses a permission, so an app you are watching may restart. There is no "give back" button: an app asks again the next time it wants the permission, and you decide then.
 - **Checked on the tested TV**: the TV accepts both blocks, stores them and reports them back, and turning them off restores the previous state. The tested TV reports no camera and one built-in microphone input. Revoke all was run on it: an app that held the microphone permission no longer held it afterwards, read back from the TV.
 - **Not checked**: no recording was made to prove that an app really gets silence while the block is on; that part is Android's own enforcement. Whether the block survives a TV restart was not tested (the panel shows the real state when you open it). A microphone that does not go through Android (for example one handled only by the TV maker's firmware) is outside this switch.
 - **Side effect**: with the microphone blocked, voice search does not hear you until you allow it again.
 - The panel changes nothing else: no app is disabled, enabled or uninstalled.
+
+</details>
+
+<details>
+<summary><b>Optimize TV in detail</b> (what it does, what it cannot do)</summary>
+
+<br>
+
+- **What it shows**, read from the TV when the panel scrolls into view and never stored: memory free, storage free, how long the TV has been on, the Android version and the date of the last security patch with its age in months.
+- **Optimize now** runs one fixed command on the TV with two steps that are safe on any Android TV and need no list of apps: `am kill-all` ends background processes that Android itself marks as safe to end (never the app on screen), and `pm trim-caches` asks every app to drop its cache files. Then the TV is read again and the change is written next to each number.
+- **Measured on the tested TV**: the memory step freed almost nothing (this remote already closes the other apps when it opens one), the cache step freed 146 MB of storage. Caches are rebuilt as apps need them, which means new writes to the TV's storage, so this is not a button to press every day.
+- **After a week without a restart** the panel says so: a restart from the TV menu clears more than this button can. The remote does not restart the TV itself.
+- **What it cannot do, plainly**: nothing here changes what wears a TV out. Panel hours, brightness and heat are outside adb's reach on the tested TV (it reports no temperature), and no app is disabled, removed or re-enabled by this button.
+- **Security patch age**: counted with the phone's own clock, nothing is looked up online. Android publishes security fixes every month, so each month of age is one round of fixes the TV does not have. Past six months the panel shows a warning and points to the section below. It is an age, not a vulnerability scan: the remote ships no list of CVEs.
 
 </details>
 
@@ -189,7 +205,7 @@ flowchart TD
 - **Home network only.** Binds to the laptop LAN address only, serves private-range clients only.
 - **Two secrets** in the URL path, compared in constant time. Five wrong secrets lock that client address for five minutes. The owner secret always gets through.
 - **Pairing.** The owner URL gives the device a random 256-bit cookie (`Secure`, `HttpOnly`, `SameSite=Strict`, 90 days). The server stores only its SHA-256 hash (newest ten devices) and compares in constant time. Encrypting the cookie would add nothing: it is opaque random data and already encrypted by TLS.
-- **Fixed commands.** Commands to the TV come only from fixed tables (keys, apps, sound presets, 1 to 5 volume steps, the four privacy switches, revoke all). User input is only a lookup key, never part of a command. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
+- **Fixed commands.** Commands to the TV come only from fixed tables (keys, apps, sound presets, 1 to 5 volume steps, the four privacy switches, revoke all, optimize). User input is only a lookup key, never part of a command. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
 - **Strict response headers** (no-store, CSP with `default-src 'none'`, nosniff, no referrer, no framing, no camera/microphone/location). Requests and secrets are never logged. Nothing is recorded about what is watched.
 - **Traffic watch.** Every 15 seconds the server checks its own and adb's connections. Anything to the internet or to a host other than the TV is recorded and turns the panel to ALERT. Inbound from non-LAN addresses is recorded too. Limits: Windows only (it reads `tasklist` and `netstat`), TCP only, sampled every 15 seconds, so a very short connection can be missed. On other systems the panel says "not available on this system" and does not start the watch.
 - **Exclusive port bind.** A second server cannot share the port.
@@ -211,6 +227,22 @@ flowchart TD
 
 </details>
 
+## When updates stop
+
+A TV that no longer receives system updates keeps every flaw found after its last patch. No remote can patch it. What helps is to give those flaws less to work with:
+
+| Step | Where | Why |
+| --- | --- | --- |
+| Check for a system update first | TV menu | The only real fix. |
+| Block the microphone and the camera, revoke their permissions | Privacy panel | A flawed app cannot listen or watch. |
+| Update the apps and the system WebView from the store while the store still serves them | TV app store | Many attacks arrive through web content inside apps. |
+| Remove apps you do not use | TV menu | Less code that can be attacked. |
+| Put the TV on a guest or isolated network | Your router | A compromised TV cannot reach your other devices. The remote cannot do this for you. |
+| If you only use local sources, block the TV's internet access | Your router | Most attacks need the TV to reach the internet. Streaming apps stop working. |
+| Turn off casting and network debugging when you do not need them | TV menu | Fewer open doors on the home network. This remote needs network debugging to work. |
+
+What stays exposed whatever you do: flaws in the system itself that an app you still run, or a device on the same network, can reach. An isolated network and fewer apps shrink that risk; they do not remove it.
+
 ## Checked claims
 
 Every promise above, and the check behind it (`python test_remote_fast.py`). "Not tested" is stated plainly.
@@ -221,6 +253,8 @@ Every promise above, and the check behind it (`python test_remote_fast.py`). "No
 | Pairing cookie: only its hash is stored, a forged cookie is refused | stored-hash and forged-cookie checks | tested |
 | Cookie is `Secure`, `HttpOnly`, `SameSite=Strict`, 90 days | cookie flags check | tested |
 | Commands only from fixed tables, volume steps and privacy switches included | allowlist, `snd/Evil`, volume step and privacy switch checks | tested |
+| The Optimize panel shows numbers parsed from the TV's answer; the clean-up is one fixed command | recorded-answer, unreadable-answer and fixed-command checks | tested |
+| Optimize makes the TV faster | none (measured once by hand: 146 MB of storage freed, memory unchanged) | not tested |
 | The privacy panel shows what the TV reports, never a guessed state | recorded-answer and unreadable-answer checks | tested |
 | A privacy block really silences the microphone or blanks the camera | none (Android's own enforcement; the TV stores and reports the block) | not tested |
 | Status panel for the owner only | status panel check | tested |
@@ -242,7 +276,7 @@ What the "stays local" checks show: this version of the file holds no way to cal
 python test_remote_fast.py
 ```
 
-Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number pad, volume steps (fixed table, at most 5, level read by a paired device only), privacy switches, revoke all and report (fixed table, no app name built by the server, parsed from the TV's answer, paired device only), owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.
+Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number pad, volume steps (fixed table, at most 5, level read by a paired device only), privacy switches, revoke all and report (fixed table, no app name built by the server, parsed from the TV's answer, paired device only), optimize (fixed command, numbers parsed from the TV's answer, paired device only), owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.
 
 ## Read the code
 
