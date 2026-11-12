@@ -4,7 +4,10 @@
 - New Privacy panel in the settings below the remote. It asks the TV (one read-only adb call) how many cameras it sees, which microphone inputs it has and which apps may record sound or use a camera, and shows the answer; nothing is stored.
 - Two switches, Microphone and Camera, turn Android's system-wide blocks on and off (`cmd sensor_privacy enable|disable 0 microphone|camera`, four fixed commands). The state shown always comes from the TV, read again after each press.
 - Measured on the tested TV (Android 14): no camera, one built-in microphone input, both blocks accepted, stored, reported and reversible. Not measured: a recording to prove silence, and a TV restart.
-- New endpoints behind the same secret and pairing checks: `GET privacy`, `POST priv/mic|cam/block|allow`. Tests added (fixed table, parsing of a recorded answer, unreadable answer, paired device only).
+- The panel says Camera and Microphone FOUND or not found, and lists the apps that really hold the permission (`granted=true` in the TV's app list). The first version read the appops list, which still named apps after their permission was gone.
+- New button "Revoke all permissions": one fixed command on the TV that revokes the microphone and camera permission from every app holding it. Run on the tested TV and read back: the holder list went from one app to none. Android closes an app that loses a permission.
+- The panel is read when it scrolls into view (about 2 seconds of work for the TV), not on every page load.
+- New endpoints behind the same secret and pairing checks: `GET privacy`, `POST priv/mic|cam/block|allow`, `POST priv/apps/revoke`. Tests added (fixed table, parsing of a recorded answer, unreadable answer, paired device only).
 
 ## 2026-11-12 (designed README)
 - README redesigned for GitHub, every fact kept: opening with a picture of the four layouts (`docs/layouts.jpg`, made from the real page with a placeholder secret), three-point summary, two Mermaid diagrams (data path, request gate), layout table, collapsible details, numbered setup. Nothing is loaded from a third-party host. Stale numbers corrected (1 to 5 volume steps, about 8 steps per second).

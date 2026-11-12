@@ -116,11 +116,19 @@ PRIV = {
     "mic/block": "cmd sensor_privacy enable 0 microphone", "mic/allow": "cmd sensor_privacy disable 0 microphone",
     "cam/block": "cmd sensor_privacy enable 0 camera", "cam/allow": "cmd sensor_privacy disable 0 camera",
 }
-# One read-only question for the Privacy panel, answered in five parts separated by the @ marks:
-# the state of the two blocks, how many cameras the TV sees, its audio inputs, and which apps may record or film.
+# The TV's list of installed apps, cut down on the TV to two kinds of line: "Package [name]" and, under an app
+# that holds one, "android.permission.RECORD_AUDIO: granted=true" (or CAMERA). About 2 seconds of work for the TV.
+_HOLDERS = "dumpsys package packages | grep -E '^  Package \\[|android.permission.(RECORD_AUDIO|CAMERA): granted=true'"
+# "Revoke all": one more fixed command. It walks that same list on the TV and takes the microphone and camera
+# permission away from every app that holds it. The app names come from the TV's own list, never from the phone.
+# Android closes an app when it loses a permission, and the app has to ask again the next time it wants it.
+PRIV["apps/revoke"] = _HOLDERS + (" | while read a b c; do case $a in Package) p=${b#[}; p=${p%]};; "
+                                  "*) pm revoke $p ${a%:};; esac; done")
+# One read-only question for the Privacy panel, answered in four parts separated by the @ marks:
+# the state of the two blocks, how many cameras the TV sees, its audio inputs, and which apps hold the permissions.
 PRIV_ASK = ("dumpsys sensor_privacy; echo @cam; dumpsys media.camera | grep 'Number of camera devices'; "
             "echo @in; dumpsys media.audio_policy | grep -E '^  [0-9]+\\. Port ID.*AUDIO_DEVICE_IN_'; "
-            "echo @micapps; cmd appops query-op RECORD_AUDIO allow; echo @camapps; cmd appops query-op CAMERA allow")
+            "echo @apps; " + _HOLDERS)
 
 # ============================================================ 3. Secrets and pairing
 # Two secrets, each one the first part of an address:
@@ -229,21 +237,27 @@ def privacy():
     Example: {"mic_blocked": False, "cam_blocked": False, "cameras": 0, "mics": ["Built-In Mic"],
               "mic_apps": ["Netflix", "com.example.app"], "cam_apps": []}"""
     try:
-        state, cameras, inputs, mic_apps, cam_apps = re.split(r"@cam|@in|@micapps|@camapps", adb("-s", TV, "shell", PRIV_ASK, timeout=8))
-    except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its five parts
+        state, cameras, inputs, holders = re.split(r"@cam|@in|@apps", adb("-s", TV, "shell", PRIV_ASK, timeout=12))
+    except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its four parts
         return {}
     # In the system's report sensor 1 is the microphone and 2 the camera; state 1 means the block is on.
     block = dict(re.findall(r"sensor=(\d)\s+toggles=\{\s+toggle_type=\d+\s+state_type=(\d)", state))
     count = re.search(r"devices: (\d+)", cameras)
     # Audio inputs that can be a microphone (built in, USB, Bluetooth, headset). HDMI, tuner and line inputs are left out.
     mics = [name for name, kind in re.findall(r'"([^"]+)"; \{AUDIO_DEVICE_IN_(\w+)', inputs) if re.search("MIC|USB|BLUETOOTH|HEADSET", kind)]
-    label = {pkg: name for name, (pkg, _) in APPS.items()}
-
-    def apps(text):  # one package per line; other lines ("No operations.") have a space in them
-        return [label.get(line.strip(), line.strip()) for line in text.splitlines() if "." in line and " " not in line.strip()]
-
+    # Walk the app list: remember the app each "Package [name]" line names, and file it under every permission line that follows.
+    label = {pkg: name for name, (pkg, _) in APPS.items()}  # show "Netflix" rather than its package name
+    holding, app = {"RECORD_AUDIO": [], "CAMERA": []}, ""
+    for line in holders.splitlines():
+        named = re.match(r"\s*Package \[([\w.]+)\]", line)
+        granted = re.search(r"android\.permission\.(RECORD_AUDIO|CAMERA): granted=true", line)
+        if named:
+            app = label.get(named[1], named[1])
+        elif granted and app not in holding[granted[1]]:
+            holding[granted[1]].append(app)
     return {"mic_blocked": block.get("1") == "1", "cam_blocked": block.get("2") == "1",
-            "cameras": int(count[1]) if count else None, "mics": mics, "mic_apps": apps(mic_apps), "cam_apps": apps(cam_apps)}
+            "cameras": int(count[1]) if count else None, "mics": mics,
+            "mic_apps": holding["RECORD_AUDIO"], "cam_apps": holding["CAMERA"]}
 
 
 def lan_ip():
@@ -623,10 +637,11 @@ const showPrivacy = j => {
     button.textContent = (what == 'mic' ? 'Microphone: ' : 'Camera: ') + (blocked ? 'BLOCKED' : 'allowed');
     button.classList.toggle('on', blocked);
   }
-  text.textContent = 'Cameras the TV sees: ' + (j.cameras == null ? 'unknown' : j.cameras)
-    + '\\nMicrophone inputs: ' + list(j.mics)
-    + '\\nApps allowed to record sound: ' + list(j.mic_apps)
-    + '\\nApps allowed to use a camera: ' + list(j.cam_apps);
+  document.getElementById('rev').textContent = 'Revoke all permissions';
+  text.textContent = 'Camera: ' + (j.cameras == null ? 'unknown' : j.cameras ? 'FOUND (' + j.cameras + ')' : 'not found')
+    + '\\nMicrophone: ' + (j.mics.length ? 'FOUND (' + j.mics.join(', ') + ')' : 'not found')
+    + '\\nApps holding the microphone permission: ' + list(j.mic_apps)
+    + '\\nApps holding the camera permission: ' + list(j.cam_apps);
 };
 const readPrivacy = () => fetch('/'+T+'/privacy').then(r => r.json()).then(showPrivacy).catch(() => {});
 // A switch: ask for the opposite of what the TV last reported, then read the TV again.
@@ -635,7 +650,10 @@ const priv = what => {
   press('priv/' + what + '/' + (privacy[what + '_blocked'] ? 'allow' : 'block'));
   setTimeout(readPrivacy, 700);
 };
-readPrivacy();
+// Revoke all: take the microphone and camera permission away from every app, then read the TV again (it needs a few seconds).
+const revoke = el => { press('priv/apps/revoke'); el.textContent = 'Revoking...'; setTimeout(readPrivacy, 5000); };
+// Reading takes the TV about 2 seconds, so it is done when the panel scrolls into view, not on every page load.
+new IntersectionObserver(seen => { seen[0].isIntersecting && readPrivacy(); }).observe(document.getElementById('pvt'));
 
 // ---------------------------------------------------------------- Fit to the screen
 // Scale the whole remote with one zoom factor so it fits the screen as it is with the browser bars showing
@@ -711,6 +729,7 @@ def page(tok, admin=False):
         '<h2>Privacy</h2><p id=pvt>Asking the TV...</p>'
         '<section class=seg id=prv><button id=mic onpointerdown="priv(\'mic\')">Microphone</button>'
         '<button id=cam onpointerdown="priv(\'cam\')">Camera</button></section>'
+        '<button id=rev onclick="revoke(this)">Revoke all permissions</button>'
         + ("<pre id=st></pre>" if admin else "") + '</footer>')
     script = JS.replace("@TOK@", tok).replace("@LIMITS@", json.dumps(VOL_LIMITS)) + (STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'

@@ -69,12 +69,17 @@ assert get("/" + TOKEN + "/vol", cookie="dev=" + cookie)[0] == 200 and get("/" +
 assert post("/" + TOKEN + "/priv/mic/block", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "cmd sensor_privacy enable 0 microphone", "privacy switch"
 assert post("/" + TOKEN + "/priv/cam/allow", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "cmd sensor_privacy disable 0 camera"
 assert post("/" + TOKEN + "/priv/mic/erase", cookie="dev=" + cookie)[0] == 404, "privacy switches come from a fixed table"
+assert post("/" + TOKEN + "/priv/apps/revoke", cookie="dev=" + cookie)[0] == 200 and "pm revoke $p" in sent[-1], "revoke all is one fixed command"
+assert post("/" + TOKEN + "/priv/apps/revoke", cookie="dev=" + cookie) and "com." not in sent[-1], "no app name is ever put into the command by the server"
 # What the TV reports is read, not assumed: feed privacy() a recorded answer and check what it understood.
 ns["adb"] = lambda *a, **k: ("sensors=[\n{\nsensor=1\ntoggles={\ntoggle_type=1\nstate_type=1\n}\n}\n{\nsensor=2\ntoggles={\ntoggle_type=1\nstate_type=2\n}\n}\n]\n"
                              "@cam\nNumber of camera devices: 0\n@in\n  1. Port ID: 2; \"Built-In Mic\"; {AUDIO_DEVICE_IN_BUILTIN_MIC, @:bottom}\n"
-                             "  2. Port ID: 3; \"HDMI In\"; {AUDIO_DEVICE_IN_HDMI, @:}\n@micapps\ncom.netflix.ninja\ncom.example.app\n@camapps\nNo operations.\n")
+                             "  2. Port ID: 3; \"HDMI In\"; {AUDIO_DEVICE_IN_HDMI, @:}\n@apps\n  Package [com.netflix.ninja] (1a2b):\n"
+                             "        android.permission.RECORD_AUDIO: granted=true, flags=[ USER_SET]\n  Package [com.example.quiet] (3c4d):\n"
+                             "  Package [com.example.app] (5e6f):\n        android.permission.RECORD_AUDIO: granted=true\n"
+                             "        android.permission.CAMERA: granted=true\n")
 assert ns["privacy"]() == {"mic_blocked": True, "cam_blocked": False, "cameras": 0, "mics": ["Built-In Mic"],
-                           "mic_apps": ["Netflix", "com.example.app"], "cam_apps": []}, "privacy report is parsed from the TV's answer"
+                           "mic_apps": ["Netflix", "com.example.app"], "cam_apps": ["com.example.app"]}, "privacy report is parsed from the TV's answer"
 ns["adb"] = lambda *a, **k: "garbage"
 assert ns["privacy"]() == {}, "an unreadable answer shows as no answer, never as a guessed state"
 assert get("/" + TOKEN + "/privacy", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/privacy")[0] == 404, "privacy report needs a paired device"

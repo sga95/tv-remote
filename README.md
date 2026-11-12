@@ -46,7 +46,7 @@ Every layout also has, unless it hides them on purpose:
 - **Keys**: Back, Home, Menu, Power, Play/Pause, Input, Volume (up, mute, down), Channel up and down.
 - **App launchers**: Netflix, Prime, YouTube, Spotify, Twitch, the launcher. Opening an app closes the other apps in the list, to free the TV's small RAM. Nothing runs in the background by design.
 - **Sound presets**: Voice, Movie, Night, Normal. They write the TV's own sound settings. The original values are kept in a restore file.
-- **Privacy panel** (in the settings, under Layout): what the TV itself reports about cameras and microphones, and two switches that block the microphone and the camera for every app. Details below.
+- **Privacy panel** (in the settings, under Layout): what the TV itself reports about cameras and microphones, whether a camera and a microphone are found, two switches that block them for every app, and one button that revokes the microphone and camera permission from every app. Details below.
 - **Owner view**: the same remote plus a live status panel (TV reachable, apps in memory with their size, free RAM, adb shell state, uptime, taps, send time, wrong-secret attempts, lockouts, traffic watch, live records of suspicious events). Counters live in memory only.
 
 <details>
@@ -75,12 +75,13 @@ Every layout also has, unless it hides them on purpose:
 
 <br>
 
-- **What it shows**, read from the TV each time the page opens and never stored: how many cameras the TV sees, its microphone inputs (built in, USB, Bluetooth, headset), the apps allowed to record sound and the apps allowed to use a camera.
+- **What it shows**, read from the TV each time the panel scrolls into view (it takes the TV about 2 seconds) and never stored: Camera found or not found, Microphone found or not found (built in, USB, Bluetooth, headset inputs), the apps that hold the microphone permission and the apps that hold the camera permission.
 - **What the switches do**: they turn on Android's own system-wide blocks (`cmd sensor_privacy`, Android 12 and later). While a block is on, the system gives every app silence or a black picture, whatever permission the app holds. After a press the page asks the TV again and shows the state the TV reports, never an assumed one.
-- **Checked on the tested TV**: the TV accepts both blocks, stores them and reports them back, and turning them off restores the previous state. The tested TV reports no camera, one built-in microphone input and no app allowed to use a camera.
+- **Revoke all permissions**: one fixed command that runs on the TV, walks the TV's own app list and takes the microphone and camera permission away from every app that holds it (`pm revoke`). Android closes an app when it loses a permission, so an app you are watching may restart. There is no "give back" button: an app asks again the next time it wants the permission, and you decide then.
+- **Checked on the tested TV**: the TV accepts both blocks, stores them and reports them back, and turning them off restores the previous state. The tested TV reports no camera and one built-in microphone input. Revoke all was run on it: an app that held the microphone permission no longer held it afterwards, read back from the TV.
 - **Not checked**: no recording was made to prove that an app really gets silence while the block is on; that part is Android's own enforcement. Whether the block survives a TV restart was not tested (the panel shows the real state when you open it). A microphone that does not go through Android (for example one handled only by the TV maker's firmware) is outside this switch.
 - **Side effect**: with the microphone blocked, voice search does not hear you until you allow it again.
-- The panel changes nothing else: no app is disabled, enabled or uninstalled and no permission is revoked.
+- The panel changes nothing else: no app is disabled, enabled or uninstalled.
 
 </details>
 
@@ -188,7 +189,7 @@ flowchart TD
 - **Home network only.** Binds to the laptop LAN address only, serves private-range clients only.
 - **Two secrets** in the URL path, compared in constant time. Five wrong secrets lock that client address for five minutes. The owner secret always gets through.
 - **Pairing.** The owner URL gives the device a random 256-bit cookie (`Secure`, `HttpOnly`, `SameSite=Strict`, 90 days). The server stores only its SHA-256 hash (newest ten devices) and compares in constant time. Encrypting the cookie would add nothing: it is opaque random data and already encrypted by TLS.
-- **Fixed commands.** Commands to the TV come only from fixed tables (keys, apps, sound presets, 1 to 5 volume steps, the four privacy switches). User input is only a lookup key, never part of a command. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
+- **Fixed commands.** Commands to the TV come only from fixed tables (keys, apps, sound presets, 1 to 5 volume steps, the four privacy switches, revoke all). User input is only a lookup key, never part of a command. POST only; no CSRF risk because the secret is in the URL and not in a cookie.
 - **Strict response headers** (no-store, CSP with `default-src 'none'`, nosniff, no referrer, no framing, no camera/microphone/location). Requests and secrets are never logged. Nothing is recorded about what is watched.
 - **Traffic watch.** Every 15 seconds the server checks its own and adb's connections. Anything to the internet or to a host other than the TV is recorded and turns the panel to ALERT. Inbound from non-LAN addresses is recorded too. Limits: Windows only (it reads `tasklist` and `netstat`), TCP only, sampled every 15 seconds, so a very short connection can be missed. On other systems the panel says "not available on this system" and does not start the watch.
 - **Exclusive port bind.** A second server cannot share the port.
@@ -241,7 +242,7 @@ What the "stays local" checks show: this version of the file holds no way to cal
 python test_remote_fast.py
 ```
 
-Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number pad, volume steps (fixed table, at most 5, level read by a paired device only), privacy switches and report (fixed table, parsed from the TV's answer, paired device only), owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.
+Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number pad, volume steps (fixed table, at most 5, level read by a paired device only), privacy switches, revoke all and report (fixed table, no app name built by the server, parsed from the TV's answer, paired device only), owner-only status, non-LAN clients, lockout and owner bypass, ASCII-only page.
 
 ## Read the code
 
