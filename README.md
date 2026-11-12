@@ -115,7 +115,10 @@ Every layout also has, unless it hides them on purpose:
 - **Not automatic on purpose**: the remote never turns the TV off by itself after a restart. It shows what changed and leaves the decision to you, because a TV in standby cannot be turned on again over the network.
 - **After a week without a restart** the panel suggests a clean restart.
 - **What it cannot do, plainly**: nothing here changes what wears a TV out. Panel hours, brightness and heat are outside adb's reach on the tested TV (it reports no temperature), and no app is disabled, removed or re-enabled by this button.
-- **Security patch age**: counted with the phone's own clock, nothing is looked up online. Android publishes security fixes every month, so each month of age is one round of fixes the TV does not have. Past six months the panel shows a warning and points to the section below. It is an age, not a vulnerability scan: the remote ships no list of CVEs.
+- **Security patch age**: counted with the phone's own clock, nothing is looked up online. Android publishes security fixes every month, so each month of age is one round of fixes the TV does not have. Past six months the panel shows a warning and points to the section below. It is an age, not a vulnerability scan.
+- **Known fixes the TV does not have**: the remote ships a list (`cve_data.json`) of the fixes rated Critical or High in the official Android Security Bulletins since January 2023, each with its CVE number, the part of Android, the kind of flaw and the Android versions it applies to. The server counts the ones published after the TV's patch month for the TV's Android version and the panel shows how many are critical, how many high, and the CVE numbers of the ones usable from a distance (RCE). Nothing is looked up online while the remote runs.
+- **How honest that list is**: it is only as fresh as the release (the panel shows the day it was made); flaws found later are not in it. The bulletins are written for all Android devices, so not every entry can be reached on a TV. Fixes in chips, the kernel and other maker-specific parts are not counted, because they depend on the hardware. It is a list to judge the risk by, not a scan of the TV.
+- **How the list is kept current**: before each release a maintainer runs `python make_cve_data.py`. It reads the official index of bulletins on source.android.com, downloads every bulletin page and takes the rows mechanically from the tables, nothing is typed by hand; it stops without writing if the site cannot be read or its layout has changed. It is the only file of the project that goes on the internet and it is not part of the running remote or of the download.
 - **Still updated through the store**: three parts of Android keep getting fixes from the app store even after the TV maker has stopped: the WebView (the web engine inside apps), Google Play services and the "Google Play system update". The panel shows the WebView version and the dates of the other two with their age. They do not replace system patches, but while they are fresh a good share of the usual ways in stays patched. A date that is far behind means that layer has stopped too.
 
 </details>
@@ -275,6 +278,8 @@ Every promise above, and the check behind it (`python test_remote_fast.py`). "No
 | The Optimize panel shows numbers parsed from the TV's answer; the clean-up is one fixed command | recorded-answer, unreadable-answer and fixed-command checks | tested |
 | Clean restart is one fixed command; a TV that stopped answering is connected again | fixed-command and reconnect checks | tested |
 | After a clean restart the page reports what became more exposed | none (run once by hand on the tested TV: nothing changed, reported as such) | not tested |
+| The list of missing fixes counts only later bulletins and only the TV's Android version; without the list file nothing is claimed | missing-fixes checks | tested |
+| Every entry of `cve_data.json` matches the official bulletins | none (taken mechanically from the bulletin tables by `make_cve_data.py`) | not tested |
 | Optimize makes the TV faster | none (measured once by hand: 146 MB of storage freed, memory unchanged) | not tested |
 | The security panel shows what the TV reports; its switches are fixed commands | recorded-answer, unreadable-answer and fixed-table checks | tested |
 | The ad personalisation request is honoured by apps | none (cannot be verified from outside the apps) | not tested |
@@ -311,6 +316,8 @@ Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number 
 | `test_remote_fast.py` | Assert checks, run on a temporary copy with its own secrets. |
 | `setup.py` | Guided setup: checks the files, finds adb, asks for the TV, creates the certificate and secrets, runs the checks. |
 | `make_package.py` | Builds the one-file download with its SHA-256 (for maintainers). |
+| `cve_data.json` | Known Android security fixes (Critical and High) from the official bulletins, with source and date. Read by the Optimize panel. |
+| `make_cve_data.py` | Rebuilds `cve_data.json` from the official bulletins (for maintainers; the only file that goes online; not in the download). |
 | `LICENSE` | GNU Affero General Public License v3. |
 | `SECURITY.md` | How to report a security problem. |
 | `docs/layouts.jpg` | The picture at the top of this page. Not part of the download. |

@@ -91,7 +91,16 @@ calls = []
 ns["adb"] = lambda *a, **k: calls.append(a) or ("" if len(calls) < 3 else "answer")
 assert ns["ask"]("question") == "answer" and calls[1][0] == "connect", "a TV that does not answer is connected again and asked once more"
 ns["adb"] = lambda *a, **k: "MemTotal:        1727336 kB\nMemAvailable:     755988 kB\n@disk\n/dev/block/x   7651016 1809612   5693948  25% /data\n@up\n14563.73 46033.10\n@os\n14\n2025-07-05\n@layers\n  Current WebView package (name, version): (com.google.android.webview, 157.0.8103.40)\n    lastUpdateTime=2026-11-09 18:26:13\n    versionName=2024-05-01 S+\n"
-assert ns["health"]() == {"ram_free": 738, "ram_total": 1686, "disk_free": 5560, "disk_total": 7471, "seconds": 14563, "hours": 4,
+assert ns["CVE"] == {} and ns["missing"]("14", "2025-07-05") == {}, "without the list file nothing is claimed"
+ns["CVE"] = {"made": "2026-01-02", "bulletins": {
+    "2025-07": [["CVE-2025-1", "system", "RCE", "Critical", "13,14"]],                      # the TV already has this month
+    "2025-08": [["CVE-2025-2", "system", "RCE", "Critical", "13,14"], ["CVE-2025-3", "framework", "EoP", "High", "15,16"]],
+    "2025-09": [["CVE-2025-4", "framework", "EoP", "High", "14"], ["CVE-2025-5", "system", "DoS", "Critical", "14,15"]]}}
+assert ns["missing"]("14", "2025-07-05") == {"critical": 2, "high": 1, "remote": ["CVE-2025-2"], "first": "2025-08", "last": "2025-09",
+                                             "made": "2026-01-02"}, "only later bulletins and only this Android version are counted"
+assert ns["missing"]("14", "2025-09-01") == {} and ns["missing"]("14", "") == {}, "a patched or unknown TV gets no list"
+ns["CVE"] = {}
+assert ns["health"]() == {"missing": {}, "ram_free": 738, "ram_total": 1686, "disk_free": 5560, "disk_total": 7471, "seconds": 14563, "hours": 4,
                           "android": "14", "patch": "2025-07-05", "webview": "157.0.8103.40", "play_services": "2026-11-09",
                           "play_system": "2024-05-01"}, "optimize panel numbers are parsed from the TV's answer"
 ns["adb"] = lambda *a, **k: "garbage"

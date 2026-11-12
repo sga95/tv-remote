@@ -356,6 +356,33 @@ def security():
             "ports": [[port, PORTS.get(port, "unknown"), doors[port]] for port in sorted(doors)]}
 
 
+def _cve_list():
+    """The list of known Android security fixes that ships with the remote (cve_data.json, next to this script);
+    {} if the file is not there. It is built from the official Android Security Bulletins by make_cve_data.py
+    before a release. The remote only reads it: nothing is ever looked up online while it runs."""
+    try:
+        with open(os.path.join(_dir, "cve_data.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+CVE = _cve_list()
+
+
+def missing(android, patch):
+    """The Critical and High fixes published after the TV's last patch that apply to its Android version; {} if unknown.
+    A bulletin of month M is contained in every patch level dated M or later, so "after" means a later month.
+    Example: {"critical": 40, "high": 291, "remote": ["CVE-2025-48593", ...], "first": "2025-08", "last": "2026-11", "made": "2026-11-12"}
+    "remote" lists the flaws of the kind RCE (usable from a distance, without touching the TV), the ones that matter most."""
+    months = sorted(month for month in CVE.get("bulletins", {}) if month > patch[:7])
+    if not (months and android and patch):
+        return {}
+    fixes = [fix for month in months for fix in CVE["bulletins"][month] if android in fix[4].split(",")]
+    return {"critical": sum(fix[3] == "Critical" for fix in fixes), "high": sum(fix[3] == "High" for fix in fixes),
+            "remote": [fix[0] for fix in fixes if fix[2] == "RCE"], "first": months[0], "last": months[-1], "made": CVE.get("made", "")}
+
+
 def health():
     """What the Optimize panel shows, in MB and hours, read from the TV each time; {} if the TV does not answer.
     Example: {"ram_free": 738, "ram_total": 1686, "disk_free": 5706, "disk_total": 7471, "seconds": 14563, "hours": 4,
@@ -370,10 +397,12 @@ def health():
         kb = {name: int(value) for name, value in re.findall(r"(MemTotal|MemAvailable):\s+(\d+)", mem)}
         size, used, free = (int(n) for n in disk.split()[1:4])  # df prints: device, size, used, free (in kB), percent, mount point
         # Only real version numbers and dates are passed on to the page, never free text from the TV.
-        return {"ram_free": kb["MemAvailable"] // 1024, "ram_total": kb["MemTotal"] // 1024,
+        android, patch = find(r"([\d.]+)", system), find(r"(\d{4}-\d{2}-\d{2})", system)
+        return {"missing": missing(android, patch),
+                "ram_free": kb["MemAvailable"] // 1024, "ram_total": kb["MemTotal"] // 1024,
                 "disk_free": free // 1024, "disk_total": size // 1024,
                 "seconds": int(float(up.split()[0])), "hours": int(float(up.split()[0]) // 3600),
-                "android": find(r"([\d.]+)", system), "patch": find(r"(\d{4}-\d{2}-\d{2})", system),
+                "android": android, "patch": patch,
                 "webview": find(r"WebView package[^\n]*?, ([\d.]+)\)", layers),
                 "play_services": find(r"lastUpdateTime=(\d{4}-\d{2}-\d{2})", layers),
                 "play_system": find(r"versionName=(\d{4}-\d{2}-\d{2})", layers)}
@@ -840,9 +869,15 @@ const patchLine = j => {
     + '\\n  Google Play system update: ' + aged(j.play_system);
   if (!j.patch) return '\\nSecurity patch: the TV does not say' + layers;
   const months = monthsSince(j.patch);
+  // Known fixes the TV does not have, counted by the server from the list that ships with the remote (no lookup online).
+  const m = j.missing || {};
+  const known = !('critical' in m) ? ''
+    : '\\nKnown Android fixes this TV does not have (bulletins ' + m.first + ' to ' + m.last + '): ' + m.critical + ' critical, ' + m.high + ' high.'
+      + (m.remote.length ? '\\n  Usable from a distance (RCE): ' + m.remote.slice(0, 8).join(', ') + (m.remote.length > 8 ? ' and ' + (m.remote.length - 8) + ' more' : '') : '')
+      + '\\n  List made on ' + m.made + ' from the Android Security Bulletins. Newer flaws are not in it, and not every one affects a TV.';
   return '\\nAndroid ' + j.android + ', security patch ' + j.patch + ' (' + months + ' months old)'
     + (months > 6 ? '\\nWARNING: ' + months + ' monthly rounds of security fixes are missing. Check for a system update in the TV menu;'
-      + ' if none comes any more, see "When updates stop" in the README.' : '') + layers;
+      + ' if none comes any more, see "When updates stop" in the README.' : '') + known + layers;
 };
 const showHealth = j => {
   const text = document.getElementById('opt');

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-12 (known fixes the TV does not have)
+- New data file `cve_data.json`: 959 fixes rated Critical or High from 47 official Android Security Bulletins (January 2023 to November 2026), taken mechanically from the bulletin tables, with source and date.
+- Optimize panel: counts the fixes published after the TV's patch month for its Android version (critical, high) and names the ones usable from a distance (RCE). Computed by the server from the shipped file; nothing is looked up online while the remote runs.
+- New maintainer script `make_cve_data.py` rebuilds the file before a release; it is the only file that goes on the internet and is not part of the running remote or of the download.
+- `make_package.py` ships `cve_data.json`.
+
 ## 2026-11-12 (states made explicit, part 2)
 - Fix: the wrong-secret count of an address below 5 never expired, so five slips spread over weeks ended in a lockout. A wrong secret is now forgotten after 5 minutes; five in a row still lock the address for 5 minutes and the lockout still ends by itself. The three states (clean, counting, locked) are written down in the code.
 - Optimize and Clean restart run one at a time: while one runs both buttons are off, so a second press cannot start a second clean-up, spoil the before-and-after numbers or overlap a restart.
