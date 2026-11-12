@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-12 (privacy panel)
+- New Privacy panel in the settings below the remote. It asks the TV (one read-only adb call) how many cameras it sees, which microphone inputs it has and which apps may record sound or use a camera, and shows the answer; nothing is stored.
+- Two switches, Microphone and Camera, turn Android's system-wide blocks on and off (`cmd sensor_privacy enable|disable 0 microphone|camera`, four fixed commands). The state shown always comes from the TV, read again after each press.
+- Measured on the tested TV (Android 14): no camera, one built-in microphone input, both blocks accepted, stored, reported and reversible. Not measured: a recording to prove silence, and a TV restart.
+- New endpoints behind the same secret and pairing checks: `GET privacy`, `POST priv/mic|cam/block|allow`. Tests added (fixed table, parsing of a recorded answer, unreadable answer, paired device only).
+
 ## 2026-11-12 (designed README)
 - README redesigned for GitHub, every fact kept: opening with a picture of the four layouts (`docs/layouts.jpg`, made from the real page with a placeholder secret), three-point summary, two Mermaid diagrams (data path, request gate), layout table, collapsible details, numbered setup. Nothing is loaded from a third-party host. Stale numbers corrected (1 to 5 volume steps, about 8 steps per second).
 

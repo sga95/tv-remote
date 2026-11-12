@@ -109,6 +109,19 @@ for way in ("up", "down"):
 # Night is decided by the phone's own clock, inside the page: no time, place or time zone is asked of anyone.
 VOL_LIMITS = {"day": 50, "night": 30, "night_from": 22, "night_to": 7, "drag": 10}
 
+# Privacy switches. Android (12 and later) has a system-wide block for the microphone and one for the camera:
+# while a block is on, the system hands every app silence or a black picture, whatever permissions the app holds.
+# These four fixed commands turn the two blocks on and off; nothing else about the TV is changed.
+PRIV = {
+    "mic/block": "cmd sensor_privacy enable 0 microphone", "mic/allow": "cmd sensor_privacy disable 0 microphone",
+    "cam/block": "cmd sensor_privacy enable 0 camera", "cam/allow": "cmd sensor_privacy disable 0 camera",
+}
+# One read-only question for the Privacy panel, answered in five parts separated by the @ marks:
+# the state of the two blocks, how many cameras the TV sees, its audio inputs, and which apps may record or film.
+PRIV_ASK = ("dumpsys sensor_privacy; echo @cam; dumpsys media.camera | grep 'Number of camera devices'; "
+            "echo @in; dumpsys media.audio_policy | grep -E '^  [0-9]+\\. Port ID.*AUDIO_DEVICE_IN_'; "
+            "echo @micapps; cmd appops query-op RECORD_AUDIO allow; echo @camapps; cmd appops query-op CAMERA allow")
+
 # ============================================================ 3. Secrets and pairing
 # Two secrets, each one the first part of an address:
 #   TOKEN  opens the remote, and only on a phone that was paired before
@@ -209,6 +222,28 @@ def vol_get():
         return {"v": int(found[1]), "max": int(found[2])}
     except (subprocess.TimeoutExpired, OSError, TypeError):  # TypeError: the line was not in the answer
         return {}
+
+
+def privacy():
+    """What the Privacy panel shows, read from the TV each time, never assumed and never stored; {} if the TV does not answer.
+    Example: {"mic_blocked": False, "cam_blocked": False, "cameras": 0, "mics": ["Built-In Mic"],
+              "mic_apps": ["Netflix", "com.example.app"], "cam_apps": []}"""
+    try:
+        state, cameras, inputs, mic_apps, cam_apps = re.split(r"@cam|@in|@micapps|@camapps", adb("-s", TV, "shell", PRIV_ASK, timeout=8))
+    except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its five parts
+        return {}
+    # In the system's report sensor 1 is the microphone and 2 the camera; state 1 means the block is on.
+    block = dict(re.findall(r"sensor=(\d)\s+toggles=\{\s+toggle_type=\d+\s+state_type=(\d)", state))
+    count = re.search(r"devices: (\d+)", cameras)
+    # Audio inputs that can be a microphone (built in, USB, Bluetooth, headset). HDMI, tuner and line inputs are left out.
+    mics = [name for name, kind in re.findall(r'"([^"]+)"; \{AUDIO_DEVICE_IN_(\w+)', inputs) if re.search("MIC|USB|BLUETOOTH|HEADSET", kind)]
+    label = {pkg: name for name, (pkg, _) in APPS.items()}
+
+    def apps(text):  # one package per line; other lines ("No operations.") have a space in them
+        return [label.get(line.strip(), line.strip()) for line in text.splitlines() if "." in line and " " not in line.strip()]
+
+    return {"mic_blocked": block.get("1") == "1", "cam_blocked": block.get("2") == "1",
+            "cameras": int(count[1]) if count else None, "mics": mics, "mic_apps": apps(mic_apps), "cam_apps": apps(cam_apps)}
 
 
 def lan_ip():
@@ -381,6 +416,10 @@ h2{margin:6px 2px 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase
 .seg{display:grid;grid-template-columns:repeat(4,1fr);background:var(--s);border:1px solid var(--bd);border-radius:18px;padding:4px;gap:4px}
 .seg button{height:42px;border:0;background:transparent;border-radius:14px;font-size:14px;color:var(--mu)}
 .seg button.on{background:var(--s2);color:var(--tx);box-shadow:inset 0 0 0 1px #34344a}
+
+/* Privacy panel: what the TV reported (#pvt) and the two switches. A switch that is .on means "blocked". */
+#prv{grid-template-columns:repeat(2,1fr)}
+#pvt{margin:0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:var(--mu);white-space:pre-wrap}
 
 /* Owner status panel */
 #st{margin:6px 0 0;padding:12px;border-radius:16px;background:#0f0f15;border:1px solid var(--bd);font:12px/1.5 ui-monospace,monospace;color:#8fb59a;white-space:pre-wrap}
@@ -570,6 +609,34 @@ vol.onpointermove = e => {
 };
 vol.onpointerup = vol.onpointercancel = () => { if (dragFrom != null) { dragFrom = null; vol.classList.remove('cap'); walk(); } };
 
+// ---------------------------------------------------------------- Privacy panel (in the settings)
+// Shows what the TV itself reports about cameras and microphones, and two switches for Android's system-wide blocks.
+// The state always comes from the TV: after a switch is pressed the TV is asked again, nothing is assumed.
+let privacy = null;   // the TV's last answer (null until it has answered)
+const list = names => names.length ? names.join(', ') : 'none';
+const showPrivacy = j => {
+  const text = document.getElementById('pvt');
+  if (!('mic_blocked' in j)) { privacy = null; text.textContent = 'The TV did not answer.'; return; }
+  privacy = j;
+  for (const what of ['mic', 'cam']) {
+    const button = document.getElementById(what), blocked = j[what + '_blocked'];
+    button.textContent = (what == 'mic' ? 'Microphone: ' : 'Camera: ') + (blocked ? 'BLOCKED' : 'allowed');
+    button.classList.toggle('on', blocked);
+  }
+  text.textContent = 'Cameras the TV sees: ' + (j.cameras == null ? 'unknown' : j.cameras)
+    + '\\nMicrophone inputs: ' + list(j.mics)
+    + '\\nApps allowed to record sound: ' + list(j.mic_apps)
+    + '\\nApps allowed to use a camera: ' + list(j.cam_apps);
+};
+const readPrivacy = () => fetch('/'+T+'/privacy').then(r => r.json()).then(showPrivacy).catch(() => {});
+// A switch: ask for the opposite of what the TV last reported, then read the TV again.
+const priv = what => {
+  if (!privacy) return;
+  press('priv/' + what + '/' + (privacy[what + '_blocked'] ? 'allow' : 'block'));
+  setTimeout(readPrivacy, 700);
+};
+readPrivacy();
+
 // ---------------------------------------------------------------- Fit to the screen
 // Scale the whole remote with one zoom factor so it fits the screen as it is with the browser bars showing
 // (the smallest it ever gets; #sv measures it), whether the bars sit at the top or the bottom. Never below 0.7
@@ -640,7 +707,11 @@ def page(tok, admin=False):
         '</main>'
         f'<div class=more aria-label="Settings below" onclick="document.querySelector(\'footer\').scrollIntoView()">{CHEV}</div>'
         '</div><i id=sv></i>'
-        f'<footer><h2>Layout</h2><section class=seg id=lay>{layouts}</section>' + ("<pre id=st></pre>" if admin else "") + '</footer>')
+        f'<footer><h2>Layout</h2><section class=seg id=lay>{layouts}</section>'
+        '<h2>Privacy</h2><p id=pvt>Asking the TV...</p>'
+        '<section class=seg id=prv><button id=mic onpointerdown="priv(\'mic\')">Microphone</button>'
+        '<button id=cam onpointerdown="priv(\'cam\')">Camera</button></section>'
+        + ("<pre id=st></pre>" if admin else "") + '</footer>')
     script = JS.replace("@TOK@", tok).replace("@LIMITS@", json.dumps(VOL_LIMITS)) + (STATS_JS if admin else "")
     return ('<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">'
             '<meta name=color-scheme content=dark><meta name=theme-color content="#0a0a0f"><meta name=apple-mobile-web-app-capable content=yes>'
@@ -717,6 +788,8 @@ class H(BaseHTTPRequestHandler):
             self.reply(200, page(ADMIN if self.admin else TOKEN, self.admin).encode("utf-8"), cookie=cookie)
         elif rest == "vol":
             self.reply(200, json.dumps(vol_get()).encode(), "application/json")
+        elif rest == "privacy":
+            self.reply(200, json.dumps(privacy()).encode(), "application/json")
         elif rest == "stats" and self.admin:
             self.reply(200, json.dumps(stats()).encode(), "application/json")
         else:
@@ -736,6 +809,8 @@ class H(BaseHTTPRequestHandler):
             cmd = VSTEP[name]
         elif kind == "snd" and name in SND:
             cmd = SND[name]
+        elif kind == "priv" and name in PRIV:
+            cmd = PRIV[name]
         else:
             return self.reply(404)
         tv(cmd)

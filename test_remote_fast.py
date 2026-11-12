@@ -66,6 +66,18 @@ assert post("/" + TOKEN + "/vol/up/6", cookie="dev=" + cookie)[0] == 404, "at mo
 assert post("/" + TOKEN + "/vol/up/1; reboot", cookie="dev=" + cookie)[0] == 404, "volume steps come from a fixed table"
 ns["vol_get"] = lambda: {"v": 1, "max": 100}  # no adb in the test
 assert get("/" + TOKEN + "/vol", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/vol")[0] == 404, "volume read needs a paired device"
+assert post("/" + TOKEN + "/priv/mic/block", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "cmd sensor_privacy enable 0 microphone", "privacy switch"
+assert post("/" + TOKEN + "/priv/cam/allow", cookie="dev=" + cookie)[0] == 200 and sent[-1] == "cmd sensor_privacy disable 0 camera"
+assert post("/" + TOKEN + "/priv/mic/erase", cookie="dev=" + cookie)[0] == 404, "privacy switches come from a fixed table"
+# What the TV reports is read, not assumed: feed privacy() a recorded answer and check what it understood.
+ns["adb"] = lambda *a, **k: ("sensors=[\n{\nsensor=1\ntoggles={\ntoggle_type=1\nstate_type=1\n}\n}\n{\nsensor=2\ntoggles={\ntoggle_type=1\nstate_type=2\n}\n}\n]\n"
+                             "@cam\nNumber of camera devices: 0\n@in\n  1. Port ID: 2; \"Built-In Mic\"; {AUDIO_DEVICE_IN_BUILTIN_MIC, @:bottom}\n"
+                             "  2. Port ID: 3; \"HDMI In\"; {AUDIO_DEVICE_IN_HDMI, @:}\n@micapps\ncom.netflix.ninja\ncom.example.app\n@camapps\nNo operations.\n")
+assert ns["privacy"]() == {"mic_blocked": True, "cam_blocked": False, "cameras": 0, "mics": ["Built-In Mic"],
+                           "mic_apps": ["Netflix", "com.example.app"], "cam_apps": []}, "privacy report is parsed from the TV's answer"
+ns["adb"] = lambda *a, **k: "garbage"
+assert ns["privacy"]() == {}, "an unreadable answer shows as no answer, never as a guessed state"
+assert get("/" + TOKEN + "/privacy", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/privacy")[0] == 404, "privacy report needs a paired device"
 assert get("/" + TOKEN + "/stats", cookie="dev=" + cookie)[0] == 404, "status panel is owner only"
 assert get("/" + ADMIN + "/stats")[0] == 200
 assert get("/" + ADMIN + "/", ip="8.8.8.8")[0] == 404, "non-LAN client refused"
