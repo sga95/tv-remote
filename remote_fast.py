@@ -876,7 +876,7 @@ const patchLine = j => {
       + (m.remote.length ? '\\n  Usable from a distance (RCE): ' + m.remote.slice(0, 8).join(', ') + (m.remote.length > 8 ? ' and ' + (m.remote.length - 8) + ' more' : '') : '')
       + '\\n  List made on ' + m.made + ' from the Android Security Bulletins. Newer flaws are not in it, and not every one affects a TV.';
   return '\\nAndroid ' + j.android + ', security patch ' + j.patch + ' (' + months + ' months old)'
-    + (months > 6 ? '\\nWARNING: ' + months + ' monthly rounds of security fixes are missing. Check for a system update in the TV menu;'
+    + (months > 6 ? '\\nWARNING: no security update for ' + months + ' months. Check for a system update in the TV menu;'
       + ' if none comes any more, see "When updates stop" in the README.' : '') + known + layers;
 };
 const showHealth = j => {
