@@ -122,6 +122,22 @@ assert ns["security"]() == {"accessibility": [], "listeners": ["com.example.laun
 ns["adb"] = lambda *a, **k: "garbage"
 assert ns["security"]() == {}
 assert get("/" + TOKEN + "/security", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/security")[0] == 404, "security report needs a paired device"
+# The remote adapts to the TV it finds. Three recorded answers: the tested TV, an older Android TV of another maker
+# with no sound settings and one app, and an answer that is not an answer.
+tv_answer = lambda brand, model, release, sdk, packages, settings: "\n#next#\n".join(
+    (brand, model, release, sdk, "".join("package:%s\n" % p for p in packages), "".join("%s=1\n" % s for s in settings)))
+ns["adb"] = lambda *a, **k: tv_answer("Philips", "UHD Android TV", "14", "34", [p for p, _ in ns["APPS"].values()], ns["SOUND_KEYS"] + ("adb_enabled",))
+assert ns["profile"]() == {"brand": "Philips", "model": "UHD Android TV", "android": "14", "sdk": 34, "apps": list(ns["APPS"]),
+                           "sound": True, "blocks": True}, "the tested TV gets everything"
+ns["adb"] = lambda *a, **k: tv_answer("Sony<script>", "BRAVIA 4K GB", "9", "28", ["com.netflix.ninja", "com.example.other"], ["adb_enabled", "sound_bass"])
+assert ns["profile"]() == {"brand": "Sonyscript", "model": "BRAVIA 4K GB", "android": "9", "sdk": 28, "apps": ["Netflix"],
+                           "sound": False, "blocks": False}, "another TV gets only what it has, and its name is cleaned"
+ns["adb"] = lambda *a, **k: "garbage"
+assert ns["profile"]() == {}, "an unreadable answer hides nothing and claims nothing"
+assert get("/" + TOKEN + "/tv", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/tv")[0] == 404, "the TV profile needs a paired device"
+pg0 = ns["page"]("x")
+assert "[hidden]{display:none!important}" in pg0 and "if (!('sdk' in j)) return;" in pg0, "what the TV lacks is hidden; no answer hides nothing"
+assert ns["VOL_GET"].endswith("|| media volume --stream 3 --get"), "the volume is read with the old command form when the new one fails"
 assert get("/" + TOKEN + "/stats", cookie="dev=" + cookie)[0] == 404, "status panel is owner only"
 assert get("/" + ADMIN + "/stats")[0] == 200
 assert get("/" + ADMIN + "/", ip="8.8.8.8")[0] == 404, "non-LAN client refused"
