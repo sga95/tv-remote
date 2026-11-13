@@ -166,26 +166,17 @@ Every layout also has, unless it hides them on purpose:
 
 Phone and TV are always on your home network. What changes is where the computer sits.
 
-<table>
-<tr>
-<td align="center" valign="top"><img src="docs/setups/pc-wifi.svg" width="360" alt="Computer on Wi-Fi: works, tested"></td>
-<td align="center" valign="top"><img src="docs/setups/raspberry-pi.svg" width="360" alt="Raspberry Pi on Wi-Fi: works, tested"></td>
-</tr>
-<tr>
-<td align="center" valign="top"><img src="docs/setups/pc-cable.svg" width="360" alt="Computer on a network cable: should work, not tested"></td>
-<td align="center" valign="top"><img src="docs/setups/pc-powerline.svg" width="360" alt="Computer behind a powerline adapter: should work, not tested"></td>
-</tr>
-<tr>
-<td align="center" valign="top"><img src="docs/setups/second-router.svg" width="360" alt="A second router with its own network: not supported"></td>
-<td align="center" valign="top"><img src="docs/setups/guest-wifi.svg" width="360" alt="Guest Wi-Fi or client isolation: not supported"></td>
-</tr>
-<tr>
-<td align="center" valign="top"><img src="docs/setups/away.svg" width="360" alt="Phone away from home: not supported"></td>
-<td></td>
-</tr>
-</table>
+<p align="center">
+<img src="docs/setups/pc-wifi.svg" width="360" alt="Computer on Wi-Fi: works, tested">
+<img src="docs/setups/raspberry-pi.svg" width="360" alt="Raspberry Pi on Wi-Fi: works, tested">
+<img src="docs/setups/pc-cable.svg" width="360" alt="Computer on a network cable: should work, not tested">
+<img src="docs/setups/pc-powerline.svg" width="360" alt="Computer behind a powerline adapter: should work, not tested">
+<img src="docs/setups/second-router.svg" width="360" alt="A second router with its own network: not supported">
+<img src="docs/setups/guest-wifi.svg" width="360" alt="Guest Wi-Fi or client isolation: not supported">
+<img src="docs/setups/away.svg" width="360" alt="Phone away from home: not supported">
+</p>
 
-On a phone the pictures stack one under the other.
+On a phone the pictures stack one under the other; on a wide screen they sit side by side.
 
 ## Get it running
 
