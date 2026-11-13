@@ -136,44 +136,102 @@ Every layout also has, unless it hides them on purpose:
 
 ## Get it running
 
-**You need**: Python 3, Android platform-tools (`adb`, from developer.android.com/tools/releases/platform-tools) and OpenSSL (it ships with Git for Windows and with most Linux and macOS systems). Enable network debugging on the TV. Tested on Windows 11 and on a Raspberry Pi 5 running Alpine Linux (see "Running on a Raspberry Pi" below).
+**You need** a Windows computer that stays on while you use the remote, an Android TV or Google TV on the same Wi-Fi, and a phone on that same Wi-Fi (not a guest network). About 20 minutes. Everything is free. Tested on Windows 11 and on a Raspberry Pi 5 with Alpine Linux (see "Running on a Raspberry Pi" below). Take the steps in order. After each step there is **what you should see**; if you see something else, go to **If not**. Every step also works for most Android TV brands (Sony, Philips, TCL, Hisense, Xiaomi, Nvidia Shield and others); only the menu names differ a little.
 
-### 1. Download and verify
+### Step 1. Switch on debugging on the TV
 
-The release is one zip with its SHA-256. Before you open it, compare the hash of what you downloaded with the published one:
+**Do:** On the TV open Settings, then About (sometimes System, then About). Find **Build** (it can be called "Android TV OS build" or "Build number"). Press OK on it **7 times**. A message says you are now a developer. Go back one level, open **Developer options** and switch on **USB debugging** and, if you see a separate switch, **Network debugging** (also called "ADB debugging" or "Wireless debugging"). Then find the TV's address: Settings, Network, your Wi-Fi, **IP address**. It looks like `192.168.1.50`. Write it down.
 
-| System | Command |
-| --- | --- |
-| Windows PowerShell | `Get-FileHash .\tv-remote-<version>.zip -Algorithm SHA256` |
-| Linux and macOS | `sha256sum tv-remote-<version>.zip` |
+**You should see:** the debugging switch is ON, and you have a number like `192.168.1.50`.
 
-They must be identical. Inside the zip, `SHA256SUMS` lists the hash of every file and `setup.py` checks them again before it configures anything; it stops on the first mismatch. The build is reproducible: the same files always give the same zip and the same hash.
+**If not:** no Developer options after 7 presses: press the Build line again (some TVs need 10 presses) or look under Settings, Device Preferences, About. No IP address: your TV may show it under Network, Advanced.
 
-### 2. Guided setup (recommended)
+### Step 2. Install three free programs
 
-Unzip, open a terminal in the folder, run:
+**Do:**
+1. **Python**: go to python.org/downloads, download and run the installer. On its first screen **tick "Add python.exe to PATH"**, then Install.
+2. **Android platform-tools** (it contains `adb`): go to developer.android.com/tools/releases/platform-tools, download "SDK Platform-Tools for Windows", right click the zip, Extract All, and put the folder at `C:\platform-tools`.
+3. **Git for Windows** (it brings OpenSSL, which makes the certificate): go to git-scm.com, download and run the installer, press Next until it ends.
+
+Now open **PowerShell**: press the Windows key, type `PowerShell`, press Enter. Type these three lines, one at a time, pressing Enter after each:
+
+```
+python --version
+& "C:\platform-tools\adb.exe" version
+& "C:\Program Files\Git\usr\bin\openssl.exe" version
+```
+
+**You should see:** a version on each line (`Python 3.x`, `Android Debug Bridge version ...`, `OpenSSL ...`).
+
+**If not:** "python is not recognised": run the Python installer again, choose Modify or Repair, and make sure "Add python.exe to PATH" is ticked; then close and reopen PowerShell. An error on adb: check the folder is exactly `C:\platform-tools` and that `adb.exe` is inside it.
+
+### Step 3. Download the remote and check it is the real one
+
+**Do:** open github.com/sga95/tv-remote/releases/latest and download `tv-remote-<version>.zip`. On the same page copy the **SHA-256** line. Then in PowerShell (replace the file name with the one you downloaded):
+
+```
+Get-FileHash $HOME\Downloads\tv-remote-<version>.zip -Algorithm SHA256
+```
+
+**You should see:** a long line of letters and numbers that is **identical** to the SHA-256 on the page (capitals or small letters do not matter).
+
+**If not:** if even one character differs, delete the file and download it again. Do not open it. If it still differs, stop and report it (SECURITY.md).
+
+### Step 4. Unzip it and open a PowerShell window inside the folder
+
+**Do:** right click the zip, **Extract All**, choose `Documents\tv-remote`. Open that folder in File Explorer, click on the **address bar** at the top, type `powershell` and press Enter. A blue window opens, already inside the folder.
+
+**You should see:** a PowerShell window whose last line ends with `tv-remote-<version>>` or the folder's name.
+
+**If not:** type `cd $HOME\Documents\tv-remote` and press Enter (use the folder name inside it if there is one more level).
+
+### Step 5. Run the guided setup
+
+**Do:** type this and press Enter:
 
 ```
 python setup.py
 ```
 
-It
-1. verifies the files against `SHA256SUMS`;
-2. finds adb or asks for its path;
-3. asks for the TV address (home-network addresses only), writes `tv.txt` and tries `adb connect`;
-4. creates the TLS certificate for this computer's LAN address (valid one year);
-5. creates the two secrets (five random words each);
-6. runs the self-check.
+Answer the questions: if it asks for the path to adb, type `C:\platform-tools\adb.exe`. When it asks for the TV address, type the number from step 1. **Now look at the TV screen**: a box asks "Allow debugging?". Tick **Always allow from this computer** and choose **OK**. Back in the window, press Enter if it says to.
 
-It never overwrites an existing file, can be run again safely and changes no system setting. It only prints the Windows commands for the firewall rule and for start at logon; you run them yourself.
+**You should see:** the lines `1.` to `6.`, a line saying the TV answers, `all checks passed`, and then `Done. Next:`.
 
-### 3. Start and pair
+**If not:** the setup says what is wrong in plain words and lets you try again. Fix it and press Enter, or type `s` and Enter to skip. You can run `python setup.py --check` at any moment to see everything that is wrong and what to do (it never changes anything). A STOP line about a file not matching means the download is damaged: go back to step 3.
+
+### Step 6. Start the remote
+
+**Do:** type this, and **leave the window open** (closing it stops the remote):
 
 ```
 python remote_fast.py
 ```
 
-(or `pythonw` for no window). Open the **owner URL** printed in the console once on the phone to pair it, and bookmark it.
+If Windows asks to allow Python through the firewall, tick **Private networks** and choose **Allow access**.
+
+**You should see:** two lines starting with `https://`: the **plain link** and the **owner link**. The owner link is also saved in the file `admin.txt` (open it with Notepad).
+
+**If not:** an error mentioning the certificate or `tv.txt`: run `python setup.py` again. "Address already in use": another copy is running, see the table below.
+
+### Step 7. Open it on the phone and pair it
+
+**Do:** on the phone (same Wi-Fi) open the browser and type the **owner link** exactly. The browser says the connection is **not private** or **not secure**. This is expected: your own computer made the certificate. Tap **Advanced** (Safari on iPhone: **Show Details**), then **continue** or **visit this website**. Bookmark the page.
+
+**You should see:** the remote with its buttons. Opening the owner link once **paired the phone**: from now on the plain link also works on this phone.
+
+**If not:** the page does not open or a white or black page: see the table below.
+
+### Step 8. Try it
+
+**Do:** tap **Volume +** on the phone.
+
+**You should see:** the volume goes up on the TV.
+
+**If not:** run `python setup.py --check` and do what it says first.
+
+### Step 9 (optional). Start it by itself when you sign in to Windows
+
+See "Running on Windows" below. Until then, run step 6 each time you want to use the remote.
 
 <details>
 <summary><b>Setup by hand</b></summary>
@@ -242,6 +300,9 @@ What differs from Windows:
 - The traffic watch of the status panel is Windows only; on the Pi the panel says "not available on this system". The only-adb and no-outside-address checks of `test_remote_fast.py` still run.
 - Anyone who holds the SD card can read the saved configuration: the adb key, the TLS key and the secrets. Keep the card physically safe.
 - Tested on one Pi only. Packages with compiled parts may not build on Alpine (it uses musl); the remote needs none.
+- If it does not come back after a reboot, the usual cause is that something was not saved: the remote's folder, the user's home (with the adb key and the pairing) and the service file must be in the saved paths, then `lbu commit -d`. Never make the admin user without a password on a diskless system, and save the root and user SSH keys before the first reboot, or nobody can log in.
+- Wi-Fi that never connects on a headless first boot: many routers now use WPA3. The Wi-Fi file needs `key_mgmt=WPA-PSK SAE` and `ieee80211w=1`, not just `WPA-PSK`. A phone's Wi-Fi details show the security type; Windows hides it without location services.
+- The phone shows a certificate error after the Pi gets a new address: reserve the address in the router, then delete `cert.pem` and `key.pem` and run `python3 setup.py` again.
 
 </details>
 
@@ -253,6 +314,24 @@ What differs from Windows:
 Delete `device.txt` and restart. Open the owner URL on the devices you want to keep.
 
 </details>
+
+## When something does not work
+
+First run `python setup.py --check`. It looks at everything below that it can see and tells you what to do. It changes nothing.
+
+| What you see | Why | What to do |
+| --- | --- | --- |
+| The page does not open, or spins | The phone is not on the same Wi-Fi (a guest network blocks it), the remote is not running, or the firewall blocks port 8765 | Same Wi-Fi as the computer. Check the step 6 window is open. On Windows with a strict firewall add the rule in "Running on Windows" |
+| A white, black or empty page, or "404" | The link is old or mistyped, or this phone is not paired, or you typed the wrong link five times | Use the **owner link** from `admin.txt` (the owner link always works). After five wrong tries a phone is locked out for 5 minutes |
+| The browser says "not private" or "not secure" | Normal: the certificate is your own | Tap Advanced, then continue (step 7) |
+| Buttons do nothing | The TV is in standby or off, debugging is off, or the TV asked for permission and nobody answered | Wake the TV with its own remote. Look at the TV for the "Allow debugging?" box and choose Always allow. Run `python setup.py --check` |
+| The first key right after the TV restarted is lost | The connection to the TV is rebuilt by that key | Press it again |
+| The TV does not switch on from the phone | Over the network adb talks only to a TV that is awake: a TV in standby usually turns its network off | Switch it on with its own remote, or with HDMI-CEC from another device. The Power button here switches off a TV that is on |
+| After moving the computer, a new Wi-Fi or a new router: certificate error or the page is gone | The certificate and the paired phone are tied to the computer's address, and the address changed | Run `python setup.py`, answer **Y** to the new certificate, restart the remote, open the owner link on the phone again. To stop it happening: in the router reserve an address for the computer (DHCP reservation), or in Windows Wi-Fi properties set a fixed IP address |
+| "Address already in use" or two remotes answer | A second copy is still running | Open Task Manager (Ctrl+Shift+Esc), tab Details, end the `python` or `pythonw` that you do not need. If it was started as administrator, end it from an administrator Task Manager |
+| The antivirus quarantines a file or flags a command | Some antivirus programs flag several commands pasted together, or any new program that opens a network port | Never turn the antivirus off and never add an exception for it. Run each command alone, as written here, check the SHA-256 of the download (step 3), and if a file is still blocked stop and report it (SECURITY.md) |
+| You lost the links | They are in two small files | Open `token.txt` (plain link) and `admin.txt` (owner link) with Notepad. The link is `https://<computer address>:8765/<the words>` |
+| The remote works but the TV reacts late | Wi-Fi is weak | Move the router closer, or use a cable for the TV |
 
 ## Security model
 
