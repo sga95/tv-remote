@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-11-13 (Raspberry Pi)
+- The remote now runs on a Raspberry Pi 5 with Alpine Linux, without any code change. README: a new section "Running on a Raspberry Pi" (install, adb key, service, firewall, saving the config on a diskless system, reserved address) and the list of what differs from Windows (no traffic watch, the SD card holds the secrets).
+
 ## 2026-11-12 (known fixes the TV does not have)
 - New data file `cve_data.json`: 959 fixes rated Critical or High from 47 official Android Security Bulletins (January 2023 to November 2026), taken mechanically from the bulletin tables, with source and date.
 - Optimize panel: counts the fixes published after the TV's patch month for its Android version (critical, high) and names the ones usable from a distance (RCE). Computed by the server from the shipped file; nothing is looked up online while the remote runs.

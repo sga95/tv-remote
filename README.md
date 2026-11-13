@@ -136,7 +136,7 @@ Every layout also has, unless it hides them on purpose:
 
 ## Get it running
 
-**You need**: Python 3, Android platform-tools (`adb`, from developer.android.com/tools/releases/platform-tools) and OpenSSL (it ships with Git for Windows and with most Linux and macOS systems). Enable network debugging on the TV. Tested on Windows 11 only.
+**You need**: Python 3, Android platform-tools (`adb`, from developer.android.com/tools/releases/platform-tools) and OpenSSL (it ships with Git for Windows and with most Linux and macOS systems). Enable network debugging on the TV. Tested on Windows 11 and on a Raspberry Pi 5 running Alpine Linux (see "Running on a Raspberry Pi" below).
 
 ### 1. Download and verify
 
@@ -192,6 +192,43 @@ Put the TV address in `tv.txt` (and the adb path in `adb.txt` if adb is not on P
 - Autostart: a scheduled task "TV Remote" runs `pythonw.exe remote_fast.py` at logon (restart on failure, no admin rights). Remove it with `Unregister-ScheduledTask -TaskName 'TV Remote' -Confirm:$false`.
 - Firewall: with inbound blocked by default, one allow rule is needed: TCP, the remote port, local subnet, the Python program, Private profile (`New-NetFirewallRule`, run once in an administrator PowerShell). Remove it with `Remove-NetFirewallRule`.
 - Start waits for the network, so a logon before Wi-Fi is up does not stop it.
+
+</details>
+
+<details>
+<summary><b>Running on a Raspberry Pi</b> (always on, no laptop needed)</summary>
+
+<br>
+
+The same files run on a small always-on computer, so the remote works with the laptop switched off. The code does not change. Tested on a Raspberry Pi 5 with Alpine Linux 3.24 (aarch64), set up without a monitor, SSH by key only, in diskless mode (the system runs from memory, the SD card is written only when you save on purpose).
+
+1. Install the tools: `apk add python3 android-tools openssl`.
+2. Copy the unzipped package to the home folder of a normal user (never run it as root) and run `python3 setup.py` there. The certificate and the two secrets are created on the Pi, so you get **new links** and the phone must be paired once again with the owner URL.
+3. The Pi makes its own adb key. The first time it connects, the TV asks to allow debugging from this computer: accept it (tick "always allow").
+4. Run it as a service so it starts at boot and restarts if it stops. A sketch for OpenRC (adjust the user and the folder):
+
+   ```
+   #!/sbin/openrc-run
+   name="tv-remote"
+   command="/usr/bin/python3"
+   command_args="remote_fast.py"
+   command_user="<user>"
+   directory="/home/<user>/tv-remote"
+   supervisor="supervise-daemon"
+   output_log="/dev/null"
+   error_log="/dev/null"
+   ```
+
+   Output goes to nowhere on purpose: the page address carries a secret and it must never reach a log.
+5. Firewall: refuse everything coming in, then allow only SSH and the remote's port (8765) from your home network. Nothing on the Pi should be reachable from the internet, so do not forward a port to it on the router.
+6. Diskless systems forget everything at reboot except what you save: put the remote's folder and the user's home in the saved paths (`/etc/apk/protected_paths.d/lbu.list`), then run `lbu commit`. Do this after setup, otherwise the secrets and the pairing are lost at the next restart.
+7. Reserve the Pi's address in the router: the certificate is made for that address and stops matching if it changes. Stop the copy on the laptop when you move, so two servers do not answer for one TV.
+
+What differs from Windows:
+
+- The traffic watch of the status panel is Windows only; on the Pi the panel says "not available on this system". The only-adb and no-outside-address checks of `test_remote_fast.py` still run.
+- Anyone who holds the SD card can read the saved configuration: the adb key, the TLS key and the secrets. Keep the card physically safe.
+- Tested on one Pi only. Packages with compiled parts may not build on Alpine (it uses musl); the remote needs none.
 
 </details>
 
