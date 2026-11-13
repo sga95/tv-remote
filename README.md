@@ -205,23 +205,36 @@ The same files run on a small always-on computer, so the remote works with the l
 1. Install the tools: `apk add python3 android-tools openssl`.
 2. Copy the unzipped package to the home folder of a normal user (never run it as root) and run `python3 setup.py` there. The certificate and the two secrets are created on the Pi, so you get **new links** and the phone must be paired once again with the owner URL.
 3. The Pi makes its own adb key. The first time it connects, the TV asks to allow debugging from this computer: accept it (tick "always allow").
-4. Run it as a service so it starts at boot and restarts if it stops. A sketch for OpenRC (adjust the user and the folder):
+4. Run it as a service so it starts at boot and restarts if it stops. This is the OpenRC file used on the Pi, saved as `/etc/init.d/tv-remote` (replace `<user>`), made executable, then `rc-update add tv-remote default`:
 
    ```
    #!/sbin/openrc-run
    name="tv-remote"
+   description="Local TV remote (HTTPS, port 8765)"
+   supervisor="supervise-daemon"
    command="/usr/bin/python3"
    command_args="remote_fast.py"
-   command_user="<user>"
+   command_user="<user>:<user>"
    directory="/home/<user>/tv-remote"
-   supervisor="supervise-daemon"
    output_log="/dev/null"
-   error_log="/dev/null"
+   error_log="/var/log/tv-remote.err"
+   respawn_delay=5
+   respawn_max=0
+   export HOME=/home/<user>
+
+   depend() {
+       need net
+       after firewall nftables
+   }
+
+   start_pre() {
+       checkpath --file --owner <user>:<user> --mode 0600 /var/log/tv-remote.err
+   }
    ```
 
-   Output goes to nowhere on purpose: the page address carries a secret and it must never reach a log.
+   Normal output goes to nowhere on purpose: the server prints the secret page addresses when it starts and they must never reach a log. Only error messages are kept, in a file only the service user can read (it lives in memory on a diskless system). `HOME` is set so adb finds the user's own key in `~/.android`. In `adb.txt` put `/usr/bin/adb`.
 5. Firewall: refuse everything coming in, then allow only SSH and the remote's port (8765) from your home network. Nothing on the Pi should be reachable from the internet, so do not forward a port to it on the router.
-6. Diskless systems forget everything at reboot except what you save: put the remote's folder and the user's home in the saved paths (`/etc/apk/protected_paths.d/lbu.list`), then run `lbu commit`. Do this after setup, otherwise the secrets and the pairing are lost at the next restart.
+6. Diskless systems forget everything at reboot except what you save: put the remote's folder and the user's home in the saved paths (`/etc/apk/protected_paths.d/lbu.list`), add the service file with `lbu include /etc/init.d/tv-remote`, then run `lbu commit -d`. Do this after setup, otherwise the secrets and the pairing are lost at the next restart.
 7. Reserve the Pi's address in the router: the certificate is made for that address and stops matching if it changes. Stop the copy on the laptop when you move, so two servers do not answer for one TV.
 
 What differs from Windows:
