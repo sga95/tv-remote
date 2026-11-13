@@ -327,6 +327,24 @@ Delete `device.txt` and restart. Open the owner URL on the devices you want to k
 
 </details>
 
+<details>
+<summary><b>The computer is on a cable, in another room, through a powerline adapter</b></summary>
+
+<br>
+
+**What is tested and what is reasoned.** This guide was tested on Windows 11 on Wi-Fi and on a Raspberry Pi. The setup below is **reasoned** from how powerline adapters and Windows work: it has not been tested on a real powerline link. Where a step depends on your own equipment, it says so.
+
+A powerline adapter pair carries Ethernet over the electrical wiring. It is a plain cable replacement: the computer stays on the same home network, behind the same router, so the phone and the TV on Wi-Fi reach it as before and the remote needs no change. The only things that change are listed here.
+
+1. **The computer gets a different address.** Wi-Fi and cable are two network cards with two addresses. The certificate and the pairing are tied to the address, exactly as in "changed address" in the table below. After you move to the cable: open PowerShell in the remote's folder, run `python setup.py --check`, then `python setup.py`, answer **Y** to the new certificate, restart the remote, and open the owner link on the phone again. To see the computer's address on the cable run `Get-NetIPAddress -AddressFamily IPv4 | Select InterfaceAlias,IPAddress`.
+2. **Same network as the phone and the TV.** The first three numbers of the computer's address, the phone's and the TV's must be the same (for example all `192.168.1.x`). If they differ, something between them is a second router (some powerline adapters with Wi-Fi, or a router in "extender" mode, create their own network). Plug the cable side into the main router's network, or switch that device to "access point" or "bridge" mode.
+3. **Windows may call the cable a new network, and set it to Public.** Then the firewall rule for the Private profile does not apply and the phone cannot connect. Check with `Get-NetConnectionProfile` (the line `NetworkCategory`). To make it Private, in an administrator PowerShell: `Set-NetConnectionProfile -InterfaceAlias "<the name shown above>" -NetworkCategory Private`. Do this only on your own home network.
+4. **Wi-Fi built into the adapter, guest network or client isolation.** If the phone joins the adapter's own Wi-Fi, or a guest network, the router or adapter may stop devices from seeing each other ("AP isolation" or "client isolation"). Put the phone on the main Wi-Fi, or switch the isolation off in the router.
+5. **A weak powerline link shows as slow or lost key presses.** Speed depends on the wiring, and on what else shares the circuit. Plug the adapters straight into a wall socket (not into a multi-socket strip or surge protector), keep them off the same socket as a heater, charger or dryer, and try another socket. To measure: in PowerShell run `ping -n 20 <the TV's address>`. Many lost lines, or times that often go above 100 ms, mean the link is the problem.
+6. **Reserve the address.** A wired computer in another room is easy to forget; its address can change after a router restart. Reserve it in the router (DHCP reservation), or the certificate and the pairing will break again.
+
+</details>
+
 ## When something does not work
 
 First run `python setup.py --check`. It looks at everything below that it can see and tells you what to do. It changes nothing.
@@ -344,6 +362,7 @@ First run `python setup.py --check`. It looks at everything below that it can se
 | The antivirus quarantines a file or flags a command | Some antivirus programs flag several commands pasted together, or any new program that opens a network port | Never turn the antivirus off and never add an exception for it. Run each command alone, as written here, check the SHA-256 of the download (step 3), and if a file is still blocked stop and report it (SECURITY.md) |
 | You lost the links | They are in two small files | Open `token.txt` (plain link) and `admin.txt` (owner link) with Notepad. The link is `https://<computer address>:8765/<the words>` |
 | The remote works but the TV reacts late | Wi-Fi is weak | Move the router closer, or use a cable for the TV |
+| Slow or lost key presses with the computer on a powerline adapter | The powerline link is weak or shares the circuit with a noisy device | Plug the adapter into a wall socket, away from heaters and chargers; measure with `ping` (see "The computer is on a cable" above) |
 
 ## Security model
 
