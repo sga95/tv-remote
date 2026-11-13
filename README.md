@@ -19,6 +19,18 @@ One small Python file. Nothing leaves your home network.
 </tr>
 </table>
 
+## Which TVs
+
+| | |
+| --- | --- |
+| **Tested on** | Philips Android TV (Android 14). |
+| **Expected to work, not yet tested** | Other TVs and boxes that run Android TV or Google TV and offer network debugging (adb): Sony, TCL, Xiaomi, Hisense models with Google TV, Chromecast with Google TV, Nvidia Shield and similar. |
+| **Not supported** | Samsung (Tizen), LG (webOS), Roku and Hisense VIDAA. They have no adb, which is the only way this remote talks to a TV. Each would need its own, different way in; that is not built and not promised. |
+
+The remote does not keep a list of brands. When the page opens it asks the TV what it is and what it has, shows it at the top of the settings ("Connected to: ...") and offers only what that TV can do: buttons for the apps that are installed, the sound presets only where their settings exist, the microphone and camera blocks only from Android 12 on. What a TV lacks is hidden or greyed out with the reason. If the TV does not answer, nothing is hidden.
+
+Tried it on another TV? Please open an issue with the "Connected to" line and what worked and what did not: that is how a brand moves from "expected" to "tested".
+
 ## How it works
 
 ```mermaid
@@ -422,6 +434,8 @@ Every promise above, and the check behind it (`python test_remote_fast.py`). "No
 | Closed by default, the plain URL needs a paired device | closed-by-default and right-secret-without-cookie checks | tested |
 | Pairing cookie: only its hash is stored, a forged cookie is refused | stored-hash and forged-cookie checks | tested |
 | Cookie is `Secure`, `HttpOnly`, `SameSite=Strict`, 90 days | cookie flags check | tested |
+| The remote offers only what the TV reports (installed apps, sound settings, Android level); an unreadable answer hides nothing | recorded answers of two TVs and an unreadable one | tested |
+| It works on TVs of other makers | none (one TV available; other makers are covered by recorded answers only) | not tested |
 | Commands only from fixed tables, volume steps and privacy switches included | allowlist, `snd/Evil`, volume step and privacy switch checks | tested |
 | The Optimize panel shows numbers parsed from the TV's answer; the clean-up is one fixed command | recorded-answer, unreadable-answer and fixed-command checks | tested |
 | Clean restart is one fixed command; a TV that stopped answering is connected again | fixed-command and reconnect checks | tested |

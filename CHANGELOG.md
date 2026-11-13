@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-13 (the remote adapts to the TV)
+- The page asks the TV what it is (maker, model, Android version) and what it has, shows "Connected to: ..." at the top of the settings and offers only that: app buttons only for installed apps, sound presets only where their four settings exist (they are specific to TPV/Philips TVs), microphone and camera blocks only from Android 12 on ("needs Android 12" otherwise). No list of brands is kept. If the TV does not answer, nothing is hidden.
+- Volume: the level is also read with the older command form (`media volume`) when the newer one fails, and the safety limits of the volume bar scale with the TV's own range instead of assuming 0 to 100.
+- README: new section "Which TVs": tested on Philips Android TV (Android 14); expected to work, not yet tested, on other Android TV and Google TV sets; not supported on Samsung (Tizen), LG (webOS), Roku and Hisense VIDAA, which have no adb.
+- New read-only endpoint behind the same secret and pairing checks: `GET tv`. Tests with recorded answers of two TVs and an unreadable one. Checked on the tested TV: everything stays as it was.
+
 ## 2026-11-13 (guided procedure and troubleshooting)
 - README: "Get it running" is now a step-by-step procedure for someone with no technical background: nine steps, each with what to do, what you should see and what to do if you do not.
 - README: a new table "When something does not work" with the problems met in practice (phone cannot open the page, blank or 404, buttons do nothing, TV in standby, first key lost after a restart, changed address, second copy running, antivirus, lost links) and, for the Raspberry Pi, Wi-Fi WPA3 and saving the config on a diskless system.
