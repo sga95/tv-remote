@@ -83,10 +83,14 @@ def launch(name):
     return cmd
 
 
-def _snd(dialog, leveler, treble, bass):
+# The four sound settings the presets write. They exist on TVs built by TPV (Philips); other makers name theirs
+# differently or keep them out of reach, so the page shows the presets only on a TV that has all four (see profile()).
+SOUND_KEYS = ("sound_dialog_enhancement", "sound_advanced_volume_leveler", "sound_treble", "sound_bass")
+
+
+def _snd(*values):
     """One sound preset = four of the TV's own sound settings, written one after the other."""
-    values = (("sound_dialog_enhancement", dialog), ("sound_advanced_volume_leveler", leveler), ("sound_treble", treble), ("sound_bass", bass))
-    return "; ".join(f"settings put global {key} {value}" for key, value in values)
+    return "; ".join(f"settings put global {key} {value}" for key, value in zip(SOUND_KEYS, values))
 
 
 # Sound presets. "Normal" holds the values the TV had before (kept in diag/audio-restore-2026-11-10.txt).
@@ -98,6 +102,15 @@ SND = {"Voice": _snd(1, 1, 60, 45), "Movie": _snd(0, 0, 55, 60), "Night": _snd(1
 # The presses of one request run side by side ("&"): measured on the TV, 3 take 0.5 s and 6 take 0.75 s,
 # about twice as fast as one after the other. That is the TV's own pace; nothing faster was found.
 VOL = "cmd media_session volume --stream 3 "
+# Reading the level: Android 11 and later answer the first form, older versions the second ("media" was its name then).
+VOL_GET = VOL + "--get || media volume --stream 3 --get"
+
+# What kind of TV is this? One read-only question, asked when the page opens, so the remote can adapt instead of
+# assuming the TV it was written on: maker, model, Android version and level, the installed apps, the settings that exist.
+# No list of brands is kept anywhere: a feature is offered when the TV itself shows it can do it.
+TV_ASK = "; echo '#next#'; ".join((
+    "getprop ro.product.brand", "getprop ro.product.model", "getprop ro.build.version.release",
+    "getprop ro.build.version.sdk", "pm list packages", "settings list global"))
 VSTEP = {}  # "up/2" -> "input keyevent KEYCODE_VOLUME_UP & input keyevent KEYCODE_VOLUME_UP &"
 for way in ("up", "down"):
     for presses in (1, 2, 3, 4, 5):
@@ -287,10 +300,33 @@ def vol_get():
     """The TV's volume now and its top value, as {"v": 28, "max": 100}; {} if it cannot be read.
     The long-lived shell throws its output away, so this one question uses a separate adb call."""
     try:
-        found = re.search(r"volume is (\d+) in range \[\d+\.\.(\d+)\]", ask(VOL + "--get"))
+        found = re.search(r"volume is (\d+) in range \[\d+\.\.(\d+)\]", ask(VOL_GET))
         return {"v": int(found[1]), "max": int(found[2])}
     except (subprocess.TimeoutExpired, OSError, TypeError):  # TypeError: the line was not in the answer
         return {}
+
+
+def profile():
+    """What this TV is and what it can do, read from the TV; {} if it does not answer.
+    Example: {"brand": "Philips", "model": "UHD Android TV", "android": "14", "sdk": 34,
+              "apps": ["Netflix", "YouTube"], "sound": True, "blocks": True}
+    apps   the buttons of the APPS list whose app is really installed on this TV
+    sound  True if the TV has the four settings the sound presets write
+    blocks True if this Android has the system-wide microphone and camera blocks (Android 12, level 31, and later)"""
+    try:
+        brand, model, android, sdk, packages, settings = (part.strip() for part in ask(TV_ASK, timeout=10).split("#next#"))
+    except (subprocess.TimeoutExpired, OSError, ValueError):  # ValueError: the answer did not have its six parts
+        return {}
+
+    def name(text):  # a maker or model name as plain letters, digits and a few signs, at most 40 characters
+        return re.sub(r"[^\w .()+-]", "", text)[:40]
+
+    installed = set(re.findall(r"package:(\S+)", packages))
+    existing = set(re.findall(r"^(\w+)=", settings, re.M))
+    level = int(sdk) if sdk.isdecimal() else 0
+    return {"brand": name(brand), "model": name(model), "android": name(android), "sdk": level,
+            "apps": [button for button, (pkg, _) in APPS.items() if pkg in installed],
+            "sound": set(SOUND_KEYS) <= existing, "blocks": level >= 31}
 
 
 def privacy():
@@ -545,6 +581,7 @@ button{font:inherit;color:var(--tx);background:var(--s);border:1px solid var(--b
 button:active{transform:scale(.95);background:var(--s2)}
 button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 button:disabled{opacity:.4}  /* nothing to act on (for example: no camera found) */
+[hidden]{display:none!important}  /* what this TV does not have (an app that is not installed, the sound presets) */
 svg{width:24px;height:24px}
 
 /* App row: each button has a short line in the app's own colour (--c) */
@@ -763,7 +800,9 @@ vol.onpointerdown = e => {
   dragFrom = wanted; dragY = e.clientY;
   // Safety ceiling for this drag: the day or night maximum and at most LIMIT.drag steps up, whichever is lower.
   // If the TV is already louder than that (set with another remote), the bar simply cannot raise it further.
-  dragTop = Math.max(dragFrom, Math.min(volMax, isNight() ? LIMIT.night : LIMIT.day, dragFrom + LIMIT.drag));
+  // The limits are written for a 0 to 100 scale; on a TV with another scale (say 0 to 30) they shrink in proportion.
+  const scaled = n => Math.max(1, Math.round(n * volMax / 100));
+  dragTop = Math.max(dragFrom, Math.min(volMax, scaled(isNight() ? LIMIT.night : LIMIT.day), dragFrom + scaled(LIMIT.drag)));
 };
 vol.onpointermove = e => {
   if (dragFrom == null) return;
@@ -778,6 +817,7 @@ vol.onpointerup = vol.onpointercancel = () => { if (dragFrom != null) { dragFrom
 // Shows what the TV itself reports about cameras and microphones, and two switches for Android's system-wide blocks.
 // The state always comes from the TV: after a switch is pressed the TV is asked again, nothing is assumed.
 let privacy = null;   // the TV's last answer (null until it has answered)
+let tvInfo = null;    // what kind of TV this is (null until it has said so; see "The TV decides" below)
 const list = names => names.length ? names.join(', ') : 'none';
 const showPrivacy = j => {
   const text = document.getElementById('pvt');
@@ -792,8 +832,9 @@ const showPrivacy = j => {
   const found = {mic: j.mics.length > 0, cam: j.cameras > 0};
   for (const what of ['mic', 'cam']) {
     const button = document.getElementById(what), blocked = j[what + '_blocked'];
-    button.disabled = !found[what] && !blocked;
-    button.textContent = (what == 'mic' ? 'Microphone: ' : 'Camera: ') + (blocked ? 'BLOCKED' : found[what] ? 'allowed' : 'not found');
+    const able = !tvInfo || tvInfo.blocks;   // the system-wide blocks exist from Android 12 on
+    button.disabled = !able || (!found[what] && !blocked);
+    button.textContent = (what == 'mic' ? 'Microphone: ' : 'Camera: ') + (!able ? 'needs Android 12' : blocked ? 'BLOCKED' : found[what] ? 'allowed' : 'not found');
     button.classList.toggle('on', blocked);
   }
   const holders = j.mic_apps.length + j.cam_apps.length, rev = document.getElementById('rev');
@@ -991,6 +1032,20 @@ const lay = name => {
 let saved = '';
 try { saved = localStorage.lay || ''; } catch (e) {}
 lay(saved);
+// ---------------------------------------------------------------- The TV decides
+// When the page opens it asks the TV what it is and what it has, and offers only that: buttons for the apps that
+// are installed, the sound presets only where their settings exist, the privacy blocks only from Android 12 on.
+// If the TV does not answer, nothing is hidden: the page stays as it is and every button can still be tried.
+const adapt = j => {
+  if (!('sdk' in j)) return;
+  tvInfo = j;
+  document.getElementById('tvn').textContent = 'Connected to: ' + (j.model.startsWith(j.brand) ? j.model : (j.brand + ' ' + j.model).trim()) + ', Android ' + j.android;
+  document.querySelectorAll('.app').forEach(button => { button.hidden = !j.apps.includes(button.textContent); });
+  document.querySelectorAll('.snd').forEach(part => { part.hidden = !j.sound; });
+  if (privacy) showPrivacy(privacy);   // the panel was drawn before the TV said what it can do: draw it again
+  fit();
+};
+fetch('/'+T+'/tv').then(r => r.json()).then(adapt).catch(() => {});
 // Back from another app: the volume may have changed meanwhile, read it again.
 document.onvisibilitychange = () => { document.hidden || document.body.className != 'fx' || readVol(); };
 """
@@ -1033,7 +1088,7 @@ def page(tok, admin=False):
         '</main>'
         f'<div class=more aria-label="Settings below" onclick="document.querySelector(\'footer\').scrollIntoView()">{CHEV}</div>'
         '</div><i id=sv></i>'
-        f'<footer><h2>Layout</h2><section class=seg id=lay>{layouts}</section>'
+        f'<footer><h2 id=tvn></h2><h2>Layout</h2><section class=seg id=lay>{layouts}</section>'
         '<h2>Privacy</h2><p id=pvt>Asking the TV...</p>'
         '<section class=seg id=prv><button id=mic onpointerdown="priv(\'mic\')">Microphone</button>'
         '<button id=cam onpointerdown="priv(\'cam\')">Camera</button></section>'
@@ -1125,6 +1180,8 @@ class H(BaseHTTPRequestHandler):
             self.reply(200, page(ADMIN if self.admin else TOKEN, self.admin).encode("utf-8"), cookie=cookie)
         elif rest == "vol":
             self.reply(200, json.dumps(vol_get()).encode(), "application/json")
+        elif rest == "tv":
+            self.reply(200, json.dumps(profile()).encode(), "application/json")
         elif rest == "privacy":
             self.reply(200, json.dumps(privacy()).encode(), "application/json")
         elif rest == "security":
