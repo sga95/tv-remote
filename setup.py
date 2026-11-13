@@ -244,6 +244,10 @@ def check():
     try:
         me = lan_ip(ip)
         ok(f"this computer is on the home network as {me}")
+        if me.split(".")[:3] != ip.split(".")[:3]:
+            say(f"  NOTE      this computer ({me}) and the TV ({ip}) look like different networks.\n"
+                "            Fine on a large network. If the phone cannot reach the remote, a second router or an extender with its own\n"
+                "            network is in between: set it to bridge or access point mode (README, \"Home setups\").")
     except OSError:
         me = ""
         no("this computer cannot reach the home network", "connect it to the same Wi-Fi as the TV")
