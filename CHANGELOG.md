@@ -9,6 +9,8 @@
 ## 2026-11-13 (guided procedure and troubleshooting)
 - README: "Get it running" is now a step-by-step procedure for someone with no technical background: nine steps, each with what to do, what you should see and what to do if you do not.
 - README: a new table "When something does not work" with the problems met in practice (phone cannot open the page, blank or 404, buttons do nothing, TV in standby, first key lost after a restart, changed address, second copy running, antivirus, lost links) and, for the Raspberry Pi, Wi-Fi WPA3 and saving the config on a diskless system.
+- README: a compatibility table at the very top (check mark = tested, ? = should work and not tested, X = not supported) and seven drawings of home setups (computer on Wi-Fi, Raspberry Pi, network cable, powerline, second router, guest Wi-Fi, away from home). Drawings are SVG, readable on a phone and in dark mode, with no real addresses or names.
+- `python setup.py --check` adds a note when the computer and the TV look like different networks (a second router or an extender with its own network).
 - README: a documented setup for a computer on a cable behind a powerline adapter, in another room (new address, certificate and pairing, same network as phone and TV, Windows Public profile, isolation, weak link). Marked as reasoned, not tested on a real powerline link.
 - `setup.py` talks plain words: when the TV does not answer or asks for permission it says exactly what to do and lets you retry or skip; if the saved certificate was made for another address it offers a new one; new `python setup.py --check` looks at everything that can go wrong (TV, adb, address, certificate, secrets, pairing, remote running) and says what to do, changing nothing.
 

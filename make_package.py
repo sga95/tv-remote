@@ -7,7 +7,7 @@ import hashlib, os, sys, zipfile
 
 D = os.path.dirname(os.path.abspath(__file__))  # the folder this script is in
 # The only files that go into the download. Anything else in the folder (secrets, certificate, settings) cannot get in.
-FILES = ["LICENSE", "SECURITY.md", "README.md", "CHANGELOG.md", "docs/layouts.jpg", "remote_fast.py", "setup.py", "test_remote_fast.py", "cve_data.json"]
+FILES = ["LICENSE", "SECURITY.md", "README.md", "CHANGELOG.md", "docs/layouts.jpg", "docs/setups/away.svg", "docs/setups/guest-wifi.svg", "docs/setups/pc-cable.svg", "docs/setups/pc-powerline.svg", "docs/setups/pc-wifi.svg", "docs/setups/raspberry-pi.svg", "docs/setups/second-router.svg", "remote_fast.py", "setup.py", "test_remote_fast.py", "cve_data.json"]
 if len(sys.argv) != 2:
     sys.exit("usage: python make_package.py <version>")
 version = sys.argv[1]
@@ -19,7 +19,7 @@ if os.path.exists(os.path.join(D, "forbidden.txt")):
 blobs = {}  # file name -> its bytes, exactly as they will be zipped
 for f in FILES:
     data = open(os.path.join(D, f), "rb").read()
-    text = not f.endswith(".jpg")  # the picture is binary: no line-ending change, no text scan
+    text = not f.endswith((".jpg", ".svg"))  # the picture is binary: no line-ending change, no text scan
     if text:
         data = data.replace(b"\r\n", b"\n")  # same bytes on every machine
         for bad in FORBIDDEN:

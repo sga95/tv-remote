@@ -13,3 +13,5 @@
 !make_cve_data.py
 !docs/
 !docs/layouts.jpg
+!docs/setups/
+!docs/setups/*.svg

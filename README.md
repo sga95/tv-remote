@@ -19,6 +19,34 @@ One small Python file. Nothing leaves your home network.
 </tr>
 </table>
 
+## Will it work for me?
+
+| | |
+| --- | --- |
+| ✅ | Works. Tested. |
+| 🟡 | Should work. Reasoned from how networks work, not tested on a real setup. |
+| ❌ | Not supported. The reason and what to do are in the table. |
+
+| Your setup | | In one line |
+| --- | :---: | --- |
+| Windows computer on Wi-Fi, phone and TV on the same Wi-Fi | ✅ | The usual case. Tested on Windows 11. |
+| Raspberry Pi on Wi-Fi, always on | ✅ | Tested on a Pi 5 with Alpine Linux. |
+| Computer on a network cable to the same router | 🟡 | Same network, so it should work. The address changes: new certificate, pair the phone again. |
+| Computer behind a powerline adapter, in another room | 🟡 | Works like a cable. Check the Windows network profile (Private, not Public). |
+| Mesh Wi-Fi, or an extender that keeps one network | 🟡 | One network, so it should work. |
+| TV on a cable, phone on Wi-Fi | 🟡 | Same network, so it should work. |
+| Philips Android TV | ✅ | Tested (Android 14). |
+| Other Android TV or Google TV (Sony, TCL, Xiaomi, Hisense Google TV, Shield, Chromecast with Google TV) | 🟡 | Expected to work, not yet tested. They need network debugging (adb). |
+| A second router with its own network between phone and computer | ❌ | They cannot reach each other. Set the second router to bridge or access point mode. |
+| Phone on a guest Wi-Fi, or "client isolation" switched on | ❌ | Devices cannot see each other. Use the main Wi-Fi or switch isolation off. |
+| Phone on mobile data, away from home | ❌ | On purpose: the remote never goes through the internet. |
+| A VPN on the phone or the computer that sends all traffic | ❌ | It hides the home network. Switch it off, or allow the local network in it. |
+| An IPv6-only network | ❌ | The remote uses IPv4 only. Nearly all home networks still have it. |
+| More than one TV with one copy of the remote | ❌ | One TV per copy. |
+| Samsung (Tizen), LG (webOS), Roku, Hisense VIDAA | ❌ | They have no adb, the only way this remote talks to a TV. |
+
+TV brands in detail: [Which TVs](#which-tvs). Each setup is drawn below. Start with the check marks, and run `python setup.py --check` if you are unsure: it tells you what is wrong on your side.
+
 ## Which TVs
 
 | | |
@@ -145,6 +173,22 @@ Every layout also has, unless it hides them on purpose:
 - The first screen is the remote only. The settings (the Layout control and, for the owner, the status panel) start below it. Keys act the moment they are touched, so start a scroll on the small arrow strip under the remote, or tap that strip to jump to the settings.
 
 </details>
+
+## Home setups, drawn
+
+Phone and TV are always on your home network. What changes is where the computer sits.
+
+<p align="center">
+<img src="docs/setups/pc-wifi.svg" width="360" alt="Computer on Wi-Fi: works, tested">
+<img src="docs/setups/raspberry-pi.svg" width="360" alt="Raspberry Pi on Wi-Fi: works, tested">
+<img src="docs/setups/pc-cable.svg" width="360" alt="Computer on a network cable: should work, not tested">
+<img src="docs/setups/pc-powerline.svg" width="360" alt="Computer behind a powerline adapter: should work, not tested">
+<img src="docs/setups/second-router.svg" width="360" alt="A second router with its own network: not supported">
+<img src="docs/setups/guest-wifi.svg" width="360" alt="Guest Wi-Fi or client isolation: not supported">
+<img src="docs/setups/away.svg" width="360" alt="Phone away from home: not supported">
+</p>
+
+On a phone the pictures stack one under the other; on a wide screen they sit side by side.
 
 ## Get it running
 
