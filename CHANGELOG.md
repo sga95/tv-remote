@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-14 (releases by one button)
+- New `.github/workflows/release.yml`, started by hand only (Actions tab, "Release", "Run workflow", type the version). It runs the tests, builds the zip with `make_package.py`, creates the tag and the GitHub Release with the zip, its size and its SHA-256, and marks it as the latest. It refuses a version that has no heading in this file. No third-party action is used. Nothing changes in the remote or in the download.
+- README: a short "Publishing a release" note for the maintainer.
+
 ## 1.2.0 (2026-11-14)
 First release since 1.0.0. It holds everything below dated 2026-11-12 and 2026-11-13: the known-fixes list for the TV's patch level, states made explicit, panels that never stay stuck, apps left open, Clean restart, the Raspberry Pi guide, the guided nine-step procedure with troubleshooting table and `setup.py --check`, the remote that adapts to the TV it finds, and the compatibility table with seven setup drawings. Download: `tv-remote-1.2.0.zip` on the release page, with its SHA-256 on the same page. Numbers 1.1.x were never published.
 
