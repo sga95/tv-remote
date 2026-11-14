@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.0 (2026-11-14)
+First release since 1.0.0. It holds everything below dated 2026-11-12 and 2026-11-13: the known-fixes list for the TV's patch level, states made explicit, panels that never stay stuck, apps left open, Clean restart, the Raspberry Pi guide, the guided nine-step procedure with troubleshooting table and `setup.py --check`, the remote that adapts to the TV it finds, and the compatibility table with seven setup drawings. Download: `tv-remote-1.2.0.zip` on the release page, with its SHA-256 on the same page. Numbers 1.1.x were never published.
+
 ## 2026-11-13 (the remote adapts to the TV)
 - The page asks the TV what it is (maker, model, Android version) and what it has, shows "Connected to: ..." at the top of the settings and offers only that: app buttons only for installed apps, sound presets only where their four settings exist (they are specific to TPV/Philips TVs), microphone and camera blocks only from Android 12 on ("needs Android 12" otherwise). No list of brands is kept. If the TV does not answer, nothing is hidden.
 - Volume: the level is also read with the older command form (`media volume`) when the newer one fails, and the safety limits of the volume bar scale with the TV's own range instead of assuming 0 to 100.
