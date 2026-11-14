@@ -15,3 +15,6 @@
 !docs/layouts.jpg
 !docs/setups/
 !docs/setups/*.svg
+!.github/
+!.github/workflows/
+!.github/workflows/release.yml
