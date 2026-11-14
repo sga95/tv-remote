@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Publish a release. Started by hand only: Actions tab, "Release", "Run workflow", type the version (for example 1.2.0).
+# It runs the tests, builds the zip with make_package.py, creates the tag v<version> on main and the GitHub Release
+# with the zip, its size and its SHA-256, and marks it as the latest. It uses no third-party action.
+name: Release
+run-name: Release ${{ inputs.version }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number, for example 1.2.0"
+        required: true
+permissions:
+  contents: write
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test, build, publish
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "version must look like 1.2.0"; exit 1; }
+          git clone --quiet "https://github.com/$GITHUB_REPOSITORY.git" src
+          cd src
+          git checkout --quiet "$GITHUB_SHA"
+          grep -q "^## $VERSION " CHANGELOG.md || { echo "CHANGELOG.md has no '## $VERSION' heading"; exit 1; }
+          python3 test_remote_fast.py
+          python3 make_package.py "$VERSION"
+          ZIP="dist/tv-remote-$VERSION.zip"
+          SUM=$(sha256sum "$ZIP" | cut -d' ' -f1)
+          SIZE=$(stat -c %s "$ZIP")
+          printf 'Download `tv-remote-%s.zip`, check its SHA-256 against the line below, then follow the guide in the README.\n\nSHA-256: %s\nSize: %s bytes\n\nWhat changed: see CHANGELOG.md.\n' "$VERSION" "$SUM" "$SIZE" > notes.md
+          gh release create "v$VERSION" "$ZIP" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "tv-remote $VERSION" --notes-file notes.md --latest
