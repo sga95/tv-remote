@@ -542,6 +542,10 @@ Files that exist only on your computer, next to the script:
 
 The secret files and the key are never committed or published. The code holds no personal data.
 
+## Publishing a release
+
+For the maintainer. Add a `## <version> (<date>)` heading to `CHANGELOG.md`, merge it, then on GitHub open Actions, "Release", "Run workflow" and type the version. The workflow runs the tests, builds the zip, and publishes the release with the zip's size and SHA-256 as the latest one. The guide above always links to the latest release, so no other text needs a new number.
+
 ## License
 
 GNU Affero General Public License v3.0 or later (see `LICENSE`). You may use and change the code, but if you distribute it, or let others use a modified version over a network, you must publish your version under the same license.
