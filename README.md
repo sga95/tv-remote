@@ -526,7 +526,8 @@ Covers closed-by-default, pairing, forged cookie, allowlisted keys only, number 
 | `make_cve_data.py` | Rebuilds `cve_data.json` from the official bulletins (for maintainers; the only file that goes online; not in the download). |
 | `LICENSE` | GNU Affero General Public License v3. |
 | `SECURITY.md` | How to report a security problem. |
-| `docs/layouts.jpg` | The picture at the top of this page. Not part of the download. |
+| `docs/layouts.jpg`, `docs/setups/*.svg` | The pictures on this page. |
+| `.github/workflows/release.yml` | Publishes a release from one manual run (for maintainers; not in the download). |
 | `SHA256SUMS` | Only in the download: the hash of every file inside, checked by `setup.py`. |
 
 Files that exist only on your computer, next to the script:
@@ -544,7 +545,19 @@ The secret files and the key are never committed or published. The code holds no
 
 ## Publishing a release
 
-For the maintainer. Add a `## <version> (<date>)` heading to `CHANGELOG.md`, merge it, then on GitHub open Actions, "Release", "Run workflow" and type the version. The workflow runs the tests, builds the zip, and publishes the release with the zip's size and SHA-256 as the latest one. The guide above always links to the latest release, so no other text needs a new number.
+For the maintainer. A release takes five steps and no computer at home: everything happens on GitHub, also from a phone. The guide above always links to the latest release, so no text needs a new number.
+
+**Step 1. Refresh the list of known fixes (only if a new Android bulletin is out).** Run `python make_cve_data.py` and merge the changed `cve_data.json`. **You should see:** a newer date in the Optimize panel after the release. **If not:** the script stops without writing when the bulletin site cannot be read; release with the old list and try again next time.
+
+**Step 2. Name the release in the changelog.** Add a `## <version> (<date>)` heading at the top of `CHANGELOG.md`, for example `## 1.2.0 (2026-11-14)`, with one line on what it holds, and merge it. **If not:** without that heading step 3 stops with "CHANGELOG.md has no heading".
+
+**Step 3. Run the release.** On github.com/sga95/tv-remote open **Actions**, **Release**, **Run workflow**, type the version (three numbers, for example `1.2.0`) and confirm. It runs the tests, builds the zip with `make_package.py`, creates the tag `v<version>` and publishes the release as the latest one. **You should see:** a green check after about a minute. **If not:** open the run and read the last red line: a failed test, a version that is not three numbers, or a version already published. Nothing is published when a step fails.
+
+**Step 4. Check the result.** Open github.com/sga95/tv-remote/releases/latest. **You should see:** `tv-remote-<version>.zip` and, in the text, its size and SHA-256. To check it yourself, run `python make_package.py <version>` on the same commit: the build is reproducible, so the hash is identical.
+
+**Step 5. Update the running copies.** A release changes nothing on the computers that run the remote. On each one, download the new zip, check it as in step 3 of "Get it running", copy the files over the old ones (the secrets, the certificate and `tv.txt` stay) and restart the remote.
+
+Notes: the "Run workflow" button exists only while Actions is enabled for the repository (Settings, Actions, "Allow sga95 actions and reusable workflows"); the workflow uses no third-party action and starts only by hand. A published version number is never reused: fix and publish the next one.
 
 ## License
 
