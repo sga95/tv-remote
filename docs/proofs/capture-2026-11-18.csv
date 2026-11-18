@@ -1,0 +1,13 @@
+from,to,protocol,service,packets,bytes,owner
+server,tv,TCP,adb,6441,103592,remote
+tv,server,TCP,adb,6363,329539,remote
+phone,server,TCP,8765 HTTPS,802,146372,remote
+server,phone,TCP,8765 HTTPS,674,208931,remote
+home devices,broadcast,ARP,,139,4872,home network
+another home device,broadcast,UDP,,113,9605,not the server
+router,all devices,ICMPv6,router advertisement,7,952,router
+control computer,server,TCP,22 SSH,8,,capture session
+server,public time server,UDP,123 NTP,4,192,system clock
+public time server,server,UDP,123 NTP,4,192,system clock
+another home device,broadcast,UDP,DHCP,4,1210,not the server
+router,multicast,IGMP,,1,16,router

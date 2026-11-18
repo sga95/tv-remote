@@ -7,7 +7,7 @@ import hashlib, os, sys, zipfile
 
 D = os.path.dirname(os.path.abspath(__file__))  # the folder this script is in
 # The only files that go into the download. Anything else in the folder (secrets, certificate, settings) cannot get in.
-FILES = ["LICENSE", "SECURITY.md", "README.md", "CHANGELOG.md", "docs/layouts.jpg", "docs/setups/away.svg", "docs/setups/guest-wifi.svg", "docs/setups/pc-cable.svg", "docs/setups/pc-powerline.svg", "docs/setups/pc-wifi.svg", "docs/setups/raspberry-pi.svg", "docs/setups/second-router.svg", "remote_fast.py", "setup.py", "test_remote_fast.py", "cve_data.json"]
+FILES = ["LICENSE", "SECURITY.md", "README.md", "CHANGELOG.md", "docs/layouts.jpg", "docs/setups/away.svg", "docs/setups/guest-wifi.svg", "docs/setups/pc-cable.svg", "docs/setups/pc-powerline.svg", "docs/setups/pc-wifi.svg", "docs/setups/raspberry-pi.svg", "docs/setups/second-router.svg", "docs/proofs/capture-2026-11-18.md", "docs/proofs/capture-2026-11-18.csv", "docs/proofs/outbound-rule-2026-11-18.md", "remote_fast.py", "setup.py", "test_remote_fast.py", "cve_data.json"]
 if len(sys.argv) != 2:
     sys.exit("usage: python make_package.py <version>")
 version = sys.argv[1]
