@@ -350,6 +350,16 @@ The same files run on a small always-on computer, so the remote works with the l
 5. Firewall: refuse everything coming in, then allow only SSH and the remote's port (8765) from your home network. Nothing on the Pi should be reachable from the internet, so do not forward a port to it on the router.
 6. Diskless systems forget everything at reboot except what you save: put the remote's folder and the user's home in the saved paths (`/etc/apk/protected_paths.d/lbu.list`), add the service file with `lbu include /etc/init.d/tv-remote`, then run `lbu commit -d`. Do this after setup, otherwise the secrets and the pairing are lost at the next restart.
 7. Reserve the Pi's address in the router: the certificate is made for that address and stops matching if it changes. Stop the copy on the laptop when you move, so two servers do not answer for one TV.
+8. Optional, recommended: limit what the remote's user can send. Four nftables lines in the output chain let that user answer its clients and talk to the TV, and refuse everything else with a counter (replace the user id with the output of `id -u <user>`, and the address and port with the ones in `tv.txt`):
+
+   ```
+   meta skuid <uid> oifname "lo" accept
+   meta skuid <uid> ct state established,related accept
+   meta skuid <uid> ip daddr <TV address> tcp dport <adb port> accept
+   meta skuid <uid> counter drop comment "tv-remote: outbound attempt refused"
+   ```
+
+   Check the file with `nft -c -f` before loading it, then press a few keys on the phone. `nft list chain inet filter output` shows the counter: it should stay at zero. Tested result and limits: [docs/proofs/outbound-rule-2026-11-18.md](docs/proofs/outbound-rule-2026-11-18.md).
 
 What differs from Windows:
 
@@ -498,6 +508,7 @@ Every promise above, and the check behind it (`python test_remote_fast.py`). "No
 | No way to call out except adb to the TV (code) | import list, no dynamic code, only adb/tasklist/netstat started, only the TV address dialled, tripwire at run time | tested, see limits below |
 | The page cannot load from or send to anywhere else; strict headers | page checks and exact CSP check | tested |
 | In real use, the remote and adb talk only to the phone and the TV | ten-minute traffic capture on the machine that runs it, release 1.2.0 ([result](docs/proofs/capture-2026-11-18.md)) | measured once, see limits below |
+| On the Raspberry Pi setup, the remote's user cannot send anything except to its clients and the TV | firewall rule by socket owner, with one deliberate attempt refused and counted ([result](docs/proofs/outbound-rule-2026-11-18.md)) | tested once on one machine, see limits there |
 | TLS mandatory, never plain HTTP, TLS 1.2 minimum | none | not tested |
 | Binds to the LAN address only, exclusive port | none | not tested |
 | Secrets compared in constant time | none (read in the code: `hmac.compare_digest`) | not tested |
@@ -520,6 +531,10 @@ The checks above read the code. This one watches the wire. On 18 November 2026 e
 Nothing from the remote or adb went to the internet. The only address outside the home was the time server that keeps the machine's clock right. Full table, method, file fingerprints and how to repeat it: [docs/proofs/capture-2026-11-18.md](docs/proofs/capture-2026-11-18.md).
 
 What it shows: those ten minutes, that version. What it does not show: other moments or versions, the content of the packets (only endpoints and sizes were read; the remote's traffic is encrypted), or what the TV and the phone send to the internet on their own, which never passes through the remote. The capture ran on the machine itself; one taken from the router would be stronger. Addresses and device names are replaced by roles, and the raw file stays offline.
+
+### Enforced: what it cannot talk to
+
+A capture shows ten minutes. On the Raspberry Pi setup a firewall rule covers the rest of the time: the user that runs the remote and adb may answer its clients and talk to the TV, and every other packet it sends is refused and counted. Tested on 18 November 2026: a deliberate download from a public address as that user timed out and the counter went from 0 to 5 packets, while the rest of the machine (updates, name lookups, clock) kept working and the remote kept answering the phone. The four lines, the full test and the limits: [docs/proofs/outbound-rule-2026-11-18.md](docs/proofs/outbound-rule-2026-11-18.md). It applies only where the rule is loaded; this guide has no equivalent for Windows yet.
 
 ### Run the checks yourself
 

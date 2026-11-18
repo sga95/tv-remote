@@ -1,9 +1,10 @@
 # Changelog
 
-## 2026-11-18 (measured: what the remote talks to)
+## 2026-11-18 (measured and enforced: what the remote talks to)
 - New `docs/proofs/capture-2026-11-18.md` and `.csv`: a ten-minute traffic capture on the machine running release 1.2.0, during normal use from a phone. 14,560 packets, none lost. The remote and adb exchanged packets only with the phone and the TV; the only address outside the home was the time server of the machine's clock. Method, file fingerprints, limits and how to repeat it are in the document. Addresses and device names are replaced by roles; the raw capture is kept offline.
 - README: "Checked claims" has a new row and a short section "Measured: what it talks to" with the summary and what the capture does not show.
-- `.gitignore` allowlist: `docs/proofs/` (Markdown and CSV only). `make_package.py` adds the two files to the download from the next release on, so the README link works offline. Nothing changes in the remote.
+- New `docs/proofs/outbound-rule-2026-11-18.md`: on the Raspberry Pi setup, four nftables lines limit the remote's user to answering its clients and talking to the TV; everything else it sends is refused and counted. Tested with one deliberate attempt (refused, counter 0 to 5 packets) while the rest of the machine kept working. README: optional step 8 in "Running on a Raspberry Pi", one more row in "Checked claims" and a short section "Enforced: what it cannot talk to".
+- `.gitignore` allowlist: `docs/proofs/` (Markdown and CSV only). `make_package.py` adds the three files to the download from the next release on, so the README link works offline. Nothing changes in the remote.
 
 ## 2026-11-14 (releases by one button)
 - New `.github/workflows/release.yml`, started by hand only (Actions tab, "Release", "Run workflow", type the version). It runs the tests, builds the zip with `make_package.py`, creates the tag and the GitHub Release with the zip, its size and its SHA-256, and marks it as the latest. It refuses a version that has no heading in this file. No third-party action is used. Nothing changes in the remote or in the download.
