@@ -497,12 +497,29 @@ Every promise above, and the check behind it (`python test_remote_fast.py`). "No
 | Requests and secrets are never logged | log check | tested |
 | No way to call out except adb to the TV (code) | import list, no dynamic code, only adb/tasklist/netstat started, only the TV address dialled, tripwire at run time | tested, see limits below |
 | The page cannot load from or send to anywhere else; strict headers | page checks and exact CSP check | tested |
+| In real use, the remote and adb talk only to the phone and the TV | ten-minute traffic capture on the machine that runs it, release 1.2.0 ([result](docs/proofs/capture-2026-11-18.md)) | measured once, see limits below |
 | TLS mandatory, never plain HTTP, TLS 1.2 minimum | none | not tested |
 | Binds to the LAN address only, exclusive port | none | not tested |
 | Secrets compared in constant time | none (read in the code: `hmac.compare_digest`) | not tested |
 | Traffic watch reports outbound connections | none | not tested |
 
 What the "stays local" checks show: this version of the file holds no way to call out except adb to the TV, and any change that adds one turns the test red until a person reviews it. What they do not show: a tripwire is not a defence against an author who hides code on purpose, and it says nothing about what adb (a Google program), Windows or the TV do on their own. `script-src 'unsafe-inline'` stays because the page is one self-contained file; the page is safe from injected script because nothing a visitor types is ever written into it.
+
+### Measured: what it talks to
+
+The checks above read the code. This one watches the wire. On 18 November 2026 everything sent and received by the machine running release 1.2.0 was recorded for ten minutes of normal use from a phone: 14,560 packets, none lost.
+
+| Who | Talked to | Packets |
+| --- | --- | ---: |
+| The remote | the phone (HTTPS on its port) | 1,476 |
+| adb, started by the remote | the TV | 12,804 |
+| The machine's clock | one public time server (NTP) | 8 |
+| Other home devices and the router | broadcast chatter the machine only overheard | 264 |
+| The computer that ran the capture | the machine (SSH) | 8 |
+
+Nothing from the remote or adb went to the internet. The only address outside the home was the time server that keeps the machine's clock right. Full table, method, file fingerprints and how to repeat it: [docs/proofs/capture-2026-11-18.md](docs/proofs/capture-2026-11-18.md).
+
+What it shows: those ten minutes, that version. What it does not show: other moments or versions, the content of the packets (only endpoints and sizes were read; the remote's traffic is encrypted), or what the TV and the phone send to the internet on their own, which never passes through the remote. The capture ran on the machine itself; one taken from the router would be stronger. Addresses and device names are replaced by roles, and the raw file stays offline.
 
 ### Run the checks yourself
 

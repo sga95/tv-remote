@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-18 (measured: what the remote talks to)
+- New `docs/proofs/capture-2026-11-18.md` and `.csv`: a ten-minute traffic capture on the machine running release 1.2.0, during normal use from a phone. 14,560 packets, none lost. The remote and adb exchanged packets only with the phone and the TV; the only address outside the home was the time server of the machine's clock. Method, file fingerprints, limits and how to repeat it are in the document. Addresses and device names are replaced by roles; the raw capture is kept offline.
+- README: "Checked claims" has a new row and a short section "Measured: what it talks to" with the summary and what the capture does not show.
+- `.gitignore` allowlist: `docs/proofs/` (Markdown and CSV only). `make_package.py` adds the two files to the download from the next release on, so the README link works offline. Nothing changes in the remote.
+
 ## 2026-11-14 (releases by one button)
 - New `.github/workflows/release.yml`, started by hand only (Actions tab, "Release", "Run workflow", type the version). It runs the tests, builds the zip with `make_package.py`, creates the tag and the GitHub Release with the zip, its size and its SHA-256, and marks it as the latest. It refuses a version that has no heading in this file. No third-party action is used. Nothing changes in the remote or in the download.
 - README: "Publishing a release" is a five-step procedure for the maintainer (refresh the fixes list, name the release in the changelog, run the workflow, check the result, update the running copies), each with what to see and what to do if not. File table: the release workflow added; the pictures are part of the download.

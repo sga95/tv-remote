@@ -15,6 +15,9 @@
 !docs/layouts.jpg
 !docs/setups/
 !docs/setups/*.svg
+!docs/proofs/
+!docs/proofs/*.md
+!docs/proofs/*.csv
 !.github/
 !.github/workflows/
 !.github/workflows/release.yml
