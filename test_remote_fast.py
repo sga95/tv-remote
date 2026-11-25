@@ -162,6 +162,13 @@ tree = ast.parse(src)
 mods = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names} | {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
 assert mods == {"collections", "hashlib", "hmac", "ipaddress", "json", "os", "re", "secrets", "socket", "ssl", "subprocess", "sys",
                 "threading", "time", "http.server", "urllib.parse"}, "imports changed: review the list, standard library only"
+# No third-party package anywhere: every script of the project imports only the standard library, so there is no
+# package name an assistant could have invented (slopsquatting) and nothing to install with pip.
+if hasattr(sys, "stdlib_module_names"):  # Python 3.10 and later; older versions skip this one check
+    for f in sorted(x for x in os.listdir(here) if x.endswith(".py")):
+        t = ast.parse(open(os.path.join(here, f), encoding="utf-8").read())
+        used = {a.name for n in ast.walk(t) if isinstance(n, ast.Import) for a in n.names} | {n.module for n in ast.walk(t) if isinstance(n, ast.ImportFrom) and n.level == 0}
+        assert not {m.split(".")[0] for m in used} - set(sys.stdlib_module_names), f"{f}: imports a package outside the standard library"
 names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
 assert not names & {"eval", "exec", "compile", "__import__", "getattr", "globals", "vars", "importlib"}, "no dynamic code or hidden lookups"
 attrs = lambda mod: {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == mod}

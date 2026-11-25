@@ -505,6 +505,7 @@ Every promise above, and the check behind it (`python test_remote_fast.py`). "No
 | Private-range clients only | non-LAN client check | tested |
 | Five wrong secrets lock the address, the owner still gets in | lockout checks | tested |
 | Requests and secrets are never logged | log check | tested |
+| No third-party package: every script of the project imports only Python's standard library, so there is nothing to install with pip and no package name that could be invented or squatted | standard-library check over every `.py` file (Python 3.10 or later) | tested |
 | No way to call out except adb to the TV (code) | import list, no dynamic code, only adb/tasklist/netstat started, only the TV address dialled, tripwire at run time | tested, see limits below |
 | The page cannot load from or send to anywhere else; strict headers | page checks and exact CSP check | tested |
 | In real use, the remote and adb talk only to the phone and the TV | ten-minute traffic capture on the machine that runs it, release 1.2.0 ([result](docs/proofs/capture-2026-11-18.md)) | measured once, see limits below |
