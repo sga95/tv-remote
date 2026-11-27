@@ -114,11 +114,24 @@ ns["adb"] = lambda *a, **k: "\n#next#\n".join((
     "LISTEN 0 0 0.0.0.0:8008 0.0.0.0:* uid:10050 ino:1 sk:0\nLISTEN 0 0 *:5555 *:* uid:2000 ino:2 sk:0\n"
     "LISTEN 0 0 127.0.0.1:4000 0.0.0.0:* uid:10050 ino:3 sk:0\nLISTEN 0 0 *:40000 *:* uid:19998 ino:4 sk:0\nLISTEN 0 0 *:41000 *:* ino:5 sk:0\n",
     "package:com.example.cast uid:10050\npackage:com.netflix.ninja uid:10070\n",
-    "UID NAME\n 2000 adbd\n19998 some@1.0-daemon\n10050 com.example.cast\n"))
+    "UID NAME\n 2000 adbd\n19998 some@1.0-daemon\n10050 com.example.cast\n", ""))
 assert ns["security"]() == {"accessibility": [], "listeners": ["com.example.launcher"], "location_on": False, "hotword_on": False,
-                            "installers": [], "usage": [], "ads_limited": False, "cast": "on",
+                            "installers": [], "usage": [], "ads_limited": False, "cast": "on", "extras": "none",
                             "ports": [[5555, "network debugging (adb, what this remote uses)", "adbd"], [8008, "Cast", "com.example.cast"],
                                       [40000, "unknown", "some@1.0-daemon"], [41000, "unknown", "the system"]]}, "security report is parsed from the TV's answer"
+ns["adb"] = lambda *a, **k: "garbage"
+# Extras: "on" while one of the TV's extras is enabled, "off" when all the ones it has are disabled.
+def sec_answer(installed, disabled):
+    return "\n#next#\n".join(["null", "null", "0", "0", "", "", "null", "0\n0", "", installed, "UID NAME\n", disabled])
+ns["adb"] = lambda *a, **k: sec_answer("package:com.android.adservices.api uid:10001\npackage:fusion.android.tv.demo uid:10002\n",
+                                       "package:com.android.adservices.api\n")
+assert ns["security"]()["extras"] == "on", "one extra still enabled"
+ns["adb"] = lambda *a, **k: sec_answer("package:com.android.adservices.api uid:10001\npackage:fusion.android.tv.demo uid:10002\n",
+                                       "package:com.android.adservices.api\npackage:fusion.android.tv.demo\n")
+assert ns["security"]()["extras"] == "off", "all extras the TV has are disabled"
+assert post("/" + TOKEN + "/sec/extras/off", cookie="dev=" + cookie)[0] == 200 and sent[-1].startswith("for p in com.android.adservices.api ") \
+    and sent[-1].endswith("; do pm disable-user --user 0 $p; done"), "extras switch disables, never uninstalls"
+assert post("/" + TOKEN + "/sec/extras/on", cookie="dev=" + cookie)[0] == 200 and sent[-1].endswith("; do pm enable $p; done")
 ns["adb"] = lambda *a, **k: "garbage"
 assert ns["security"]() == {}
 assert get("/" + TOKEN + "/security", cookie="dev=" + cookie)[0] == 200 and get("/" + TOKEN + "/security")[0] == 404, "security report needs a paired device"
