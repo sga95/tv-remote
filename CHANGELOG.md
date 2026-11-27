@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-27 (Unused services switch)
+- Security panel: a third switch, **Unused services**, turns off six system parts a TV does not need (`pm disable-user`) and back on (`pm enable`), all at once: the three Privacy Sandbox services, the "device nearby" pop-ups and the Android TV remote service (five marked "Recommended" for removal in the Universal Android Debloater NG list), plus the Philips shop demo mode. Nothing is uninstalled. The panel reads which of them the TV has and whether they are off (`pm list packages -d`, one more part of the same read-only question). Turning off the remote service closes ports 6466 and 6467; phone apps can then no longer act as a remote.
+- Tests: the Unused services state as read from the TV, and the two commands. README: Security panel details and the "When updates stop" table.
+
 ## 2026-11-25 (no third-party package, enforced)
 - `test_remote_fast.py` now checks every `.py` file of the project, not only `remote_fast.py`: each import must belong to Python's standard library (Python 3.10 or later; older versions skip this one check). It guards against slopsquatting, where an AI assistant suggests a package name that does not exist and an attacker registers it: the project installs nothing with pip, so there is no such name to invent. The release workflow runs the test, so a release with an outside package fails. Checked on 2026-11-25: the five scripts use the standard library only, the workflow uses no third-party action, and the packages of the Raspberry Pi guide (`apk add python3 android-tools openssl`) are genuine Alpine packages. README: new row in "Checked claims". Nothing changes in the remote.
 
