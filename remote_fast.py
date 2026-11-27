@@ -153,10 +153,10 @@ SEC = {
     # Ask apps not to personalise advertising. A request to well-behaved apps, not a block: it cannot be verified from here.
     "ads/limit": "settings put secure limit_ad_tracking 1", "ads/free": "settings delete secure limit_ad_tracking",
 }
-# Extras: system parts a TV does not need, each marked "Recommended" for removal in the Universal Android Debloater NG
+# Unused services: system parts a TV does not need, each marked "Recommended" for removal in the Universal Android Debloater NG
 # list (GPL-3.0), except the shop demo app. Off = disabled for the TV's user, nothing is uninstalled; one press brings
 # them all back. A package the TV does not have is skipped by Android with an error that nobody sees.
-EXTRAS = (
+UNUSED = (
     "com.android.adservices.api",                    # Privacy Sandbox advertising
     "com.android.ondevicepersonalization.services",  # Privacy Sandbox: personalisation on the device
     "com.android.federatedcompute.services",         # Privacy Sandbox: learning from usage data
@@ -164,8 +164,8 @@ EXTRAS = (
     "fusion.android.tv.demo",                        # shop demo mode (Philips)
     "com.google.android.tv.remote.service",          # Android TV remote service: phone apps as remote, ports 6466/6467
 )
-SEC["extras/off"] = "for p in " + " ".join(EXTRAS) + "; do pm disable-user --user 0 $p; done"
-SEC["extras/on"] = "for p in " + " ".join(EXTRAS) + "; do pm enable $p; done"
+SEC["unused/off"] = "for p in " + " ".join(UNUSED) + "; do pm disable-user --user 0 $p; done"
+SEC["unused/on"] = "for p in " + " ".join(UNUSED) + "; do pm enable $p; done"
 # The read-only question, in twelve parts separated by "#next#": accessibility services, apps that read notifications,
 # location, voice hotword, apps allowed to install apps, apps allowed to read usage, the advertising request,
 # the Cast receiver (installed? disabled?), the network ports the TV listens on with the user id that owns each,
@@ -394,8 +394,8 @@ def security():
     owner.update({uid: label.get(pkg, pkg) for pkg, uid in re.findall(r"package:(\S+) uid:(\d+)", apps)})
     # Listening sockets, without the ones only the TV itself can reach (loopback addresses).
     # A line without "uid:" belongs to the system itself (user id 0).
-    have = [pkg for pkg in EXTRAS if "package:" + pkg + " " in apps + " "]
-    extras = "none" if not have else "off" if all("package:" + pkg in off.split() for pkg in have) else "on"
+    have = [pkg for pkg in UNUSED if "package:" + pkg + " " in apps + " "]
+    unused = "none" if not have else "off" if all("package:" + pkg in off.split() for pkg in have) else "on"
     doors = {}
     for address, port, uid in re.findall(r"LISTEN\s+\d+\s+\d+\s+(\S+):(\d+)\s+\S+(?:[^\n]*?uid:(\d+))?", ports):
         if not address.startswith("127.") and "::1" not in address:
@@ -403,7 +403,7 @@ def security():
     return {"accessibility": services(access), "listeners": services(listeners),
             "location_on": location.strip() not in ("0", "null"), "hotword_on": hotword.strip() == "1",
             "installers": packages(installers), "usage": packages(usage), "ads_limited": ads.strip() == "1",
-            "cast": "none" if not installed else "off" if disabled else "on", "extras": extras,
+            "cast": "none" if not installed else "off" if disabled else "on", "unused": unused,
             "ports": [[port, PORTS.get(port, "unknown"), doors[port]] for port in sorted(doors)]}
 
 
@@ -898,14 +898,14 @@ const showSecurity = j => {
   ads.textContent = 'Ad personalisation: ' + (j.ads_limited ? 'LIMITED' : 'not limited');
   ads.classList.toggle('on', j.ads_limited);
   const ext = document.getElementById('ext');
-  ext.disabled = j.extras == 'none';
-  ext.textContent = 'Extras: ' + (j.extras == 'none' ? 'none found' : j.extras == 'on' ? 'on' : 'OFF');
-  ext.classList.toggle('on', j.extras == 'off');
+  ext.disabled = j.unused == 'none';
+  ext.textContent = 'Unused services: ' + (j.unused == 'none' ? 'none found' : j.unused == 'on' ? 'on' : 'OFF');
+  ext.classList.toggle('on', j.unused == 'off');
 };
 const readSecurity = () => fetch('/'+T+'/security').then(r => r.json()).then(showSecurity).catch(() => showSecurity({}));
 // A switch: ask for the opposite of what the TV last reported, then read the TV again (Cast needs a few seconds to start or stop).
 const secure = what => {
-  if (!secState || document.getElementById({cast: 'cast', ads: 'adl', extras: 'ext'}[what]).disabled) return;
+  if (!secState || document.getElementById({cast: 'cast', ads: 'adl', unused: 'ext'}[what]).disabled) return;
   press('sec/' + (what == 'ads' ? 'ads/' + (secState.ads_limited ? 'free' : 'limit') : what + '/' + (secState[what] == 'on' ? 'off' : 'on')));
   setTimeout(readSecurity, what == 'ads' ? 800 : 7000);
 };
@@ -1115,7 +1115,7 @@ def page(tok, admin=False):
         '<h2>Security</h2><p id=sct>Asking the TV...</p>'
         '<section class=seg id=secb><button id=cast onpointerdown="secure(\'cast\')">Cast</button>'
         '<button id=adl onpointerdown="secure(\'ads\')">Ad personalisation</button>'
-        '<button id=ext onpointerdown="secure(\'extras\')">Extras</button></section>'
+        '<button id=ext onpointerdown="secure(\'unused\')">Unused services</button></section>'
         '<h2>Optimize TV</h2><p id=opt>Asking the TV...</p>'
         '<button id=tunebtn onclick="tune(this)">Optimize now</button>'
         '<button id=rst onclick="restart(this)">Clean restart</button>'
